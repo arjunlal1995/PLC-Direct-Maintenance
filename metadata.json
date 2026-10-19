@@ -1,0 +1,6 @@
+{
+  "name": "PLC Direct Maintenance - Android APK & Real-Time Alerts",
+  "description": "Production Kotlin Android application and custom real-time notification engine for PLC industrial maintenance, including APK packaging, live alert simulation, and CI/CD pipelines.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
