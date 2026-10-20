@@ -38,214 +38,28 @@ object CumminsMarineEngineProfile {
     const val LOCAL_CONTROL_PANEL_PART = "4348239"
     const val FLYWHEEL_TEETH_COUNT = 142
     const val RATED_RPM = 1800.0
-    const val OVERSPEED_TRIP_RPM = 1980.0 // 10-12% of nominal rated
+    const val OVERSPEED_TRIP_RPM = 1980.0
 
     val SENSORS = listOf(
-        CumminsSensorSpec(
-            srNo = 1,
-            description = "Engine Speed (Magnetic Pickup MPU)",
-            cumminsPartNo = "4912304",
-            mountingLocation = "Flywheel Housing",
-            signalType = "Frequency (MPU / F-I Converter)",
-            rangeMin = 0.0,
-            rangeMax = 2000.0,
-            unit = "RPM",
-            alarmSetpoint = null,
-            tripSetpoint = 1980.0,
-            modbusAddress = 30001,
-            remark = "142 teeth flywheel, overspeed trip at 1980 RPM"
-        ),
-        CumminsSensorSpec(
-            srNo = 2,
-            description = "Lub Oil Temperature Transmitter",
-            cumminsPartNo = "4963242",
-            mountingLocation = "Lub Oil Pan",
-            signalType = "4-20 mA",
-            rangeMin = 0.0,
-            rangeMax = 150.0,
-            unit = "°C",
-            alarmSetpoint = 121.0,
-            tripSetpoint = 125.0,
-            modbusAddress = 30002,
-            remark = "Alarm & Trip values settable"
-        ),
-        CumminsSensorSpec(
-            srNo = 3,
-            description = "Lub Oil Pressure Transmitter",
-            cumminsPartNo = "5543059",
-            mountingLocation = "Main Oil Gallery",
-            signalType = "4-20 mA",
-            rangeMin = 0.0,
-            rangeMax = 16.0,
-            unit = "bar",
-            alarmSetpoint = 1.2,
-            tripSetpoint = 0.8,
-            modbusAddress = 30003,
-            remark = "Coupled with Low Lub Oil Pressure Trip Switch 4962856"
-        ),
-        CumminsSensorSpec(
-            srNo = 4,
-            description = "Turning Gear Engaged Safety Switch",
-            cumminsPartNo = "4368842",
-            mountingLocation = "Flywheel Housing",
-            signalType = "Digital Input (DI NO/NC)",
-            rangeMin = 0.0,
-            rangeMax = 1.0,
-            unit = "State",
-            alarmSetpoint = 1.0,
-            tripSetpoint = 1.0,
-            modbusAddress = 10001,
-            remark = "OPEN CONTACT INTERLOCK: Engine start prohibited when turning gear engaged"
-        ),
-        CumminsSensorSpec(
-            srNo = 5,
-            description = "Sea Water Pressure Transmitter",
-            cumminsPartNo = "5543058",
-            mountingLocation = "Sea Water System",
-            signalType = "4-20 mA",
-            rangeMin = 0.0,
-            rangeMax = 6.0,
-            unit = "bar",
-            alarmSetpoint = 0.8,
-            tripSetpoint = null,
-            modbusAddress = 30004,
-            remark = "Alarm on low pressure < 0.8 bar"
-        ),
-        CumminsSensorSpec(
-            srNo = 6,
-            description = "Fuel Pressure Transmitter",
-            cumminsPartNo = "5543059",
-            mountingLocation = "Fuel System",
-            signalType = "4-20 mA",
-            rangeMin = 0.0,
-            rangeMax = 16.0,
-            unit = "bar",
-            alarmSetpoint = 2.0,
-            tripSetpoint = null,
-            modbusAddress = 30005,
-            remark = "Monitoring pressure to fuel pump"
-        ),
-        CumminsSensorSpec(
-            srNo = 7,
-            description = "Cooling Water Temperature Transmitter",
-            cumminsPartNo = "4963242",
-            mountingLocation = "Engine Cooling Jacket",
-            signalType = "4-20 mA",
-            rangeMin = 0.0,
-            rangeMax = 150.0,
-            unit = "°C",
-            alarmSetpoint = 92.0,
-            tripSetpoint = 97.0,
-            modbusAddress = 30006,
-            remark = "Coupled with Very High Water Temp Trip Switch 4962857"
-        ),
-        CumminsSensorSpec(
-            srNo = 8,
-            description = "Exhaust Temp Left Bank",
-            cumminsPartNo = "4911878",
-            mountingLocation = "Exhaust Elbow (Left)",
-            signalType = "CR-AL K-Type Thermocouple",
-            rangeMin = 0.0,
-            rangeMax = 800.0,
-            unit = "°C",
-            alarmSetpoint = 550.0,
-            tripSetpoint = null,
-            modbusAddress = 30007,
-            remark = "Alarm value settable, threshold 550 °C"
-        ),
-        CumminsSensorSpec(
-            srNo = 9,
-            description = "Exhaust Temp Right Bank",
-            cumminsPartNo = "4911878",
-            mountingLocation = "Exhaust Elbow (Right)",
-            signalType = "CR-AL K-Type Thermocouple",
-            rangeMin = 0.0,
-            rangeMax = 800.0,
-            unit = "°C",
-            alarmSetpoint = 550.0,
-            tripSetpoint = null,
-            modbusAddress = 30008,
-            remark = "Alarm value settable, threshold 550 °C"
-        ),
-        CumminsSensorSpec(
-            srNo = 10,
-            description = "Low Coolant Level Switch",
-            cumminsPartNo = "4383931",
-            mountingLocation = "Fresh Water Expansion Tank",
-            signalType = "Active High Digital Input",
-            rangeMin = 0.0,
-            rangeMax = 1.0,
-            unit = "State",
-            alarmSetpoint = 1.0,
-            tripSetpoint = null,
-            modbusAddress = 10002,
-            remark = "Expansion tank low water level alarm"
-        )
+        CumminsSensorSpec(1, "Engine Speed (MPU)", "4912304", "Flywheel Housing", "Frequency (MPU / F-I Converter)", 0.0, 2000.0, "RPM", null, 1980.0, 30001, "142 teeth flywheel, overspeed trip 1980 RPM"),
+        CumminsSensorSpec(2, "Lub Oil Temperature Transmitter", "4963242", "Lub Oil Pan", "4-20 mA", 0.0, 150.0, "°C", 121.0, 125.0, 30002, "Alarm 121 °C, Trip 125 °C"),
+        CumminsSensorSpec(3, "Lub Oil Pressure Transmitter", "5543059", "Main Oil Gallery", "4-20 mA", 0.0, 16.0, "bar", 1.2, 0.8, 30003, "Alarm 1.2 bar, Trip 0.8 bar (Switch 4962856)"),
+        CumminsSensorSpec(4, "Turning Gear Engaged Safety Switch", "4368842", "Flywheel Housing", "Digital Input (DI NO/NC)", 0.0, 1.0, "State", 1.0, 1.0, 10001, "OPEN CONTACT: Engine start prohibited when turning gear engaged"),
+        CumminsSensorSpec(5, "Sea Water Pressure Transmitter", "5543058", "Sea Water System", "4-20 mA", 0.0, 6.0, "bar", 0.8, null, 30004, "Alarm on low pressure < 0.8 bar"),
+        CumminsSensorSpec(6, "Fuel Pressure Transmitter", "5543059", "Fuel System", "4-20 mA", 0.0, 16.0, "bar", 2.0, null, 30005, "Monitoring fuel header pressure"),
+        CumminsSensorSpec(7, "Cooling Water Temperature Transmitter", "4963242", "Engine Cooling Jacket", "4-20 mA", 0.0, 150.0, "°C", 92.0, 97.0, 30006, "Alarm 92 °C, Trip 97 °C (Switch 4962857)"),
+        CumminsSensorSpec(8, "Exhaust Temp Left Bank", "4911878", "Exhaust Elbow (Left)", "CR-AL K-Type Thermocouple", 0.0, 800.0, "°C", 550.0, null, 30007, "Alarm threshold 550 °C"),
+        CumminsSensorSpec(9, "Exhaust Temp Right Bank", "4911878", "Exhaust Elbow (Right)", "CR-AL K-Type Thermocouple", 0.0, 800.0, "°C", 550.0, null, 30008, "Alarm threshold 550 °C"),
+        CumminsSensorSpec(10, "Low Coolant Level Switch", "4383931", "Fresh Water Expansion Tank", "Active High Digital Input", 0.0, 1.0, "State", 1.0, null, 10002, "Expansion tank low water level alarm")
     )
 
     val SAFETY_INTERLOCKS = listOf(
-        CumminsSafetyInterlock(
-            id = 1,
-            name = "Turning Gear Disengagement Interlock",
-            condition = "TURNING GEAR ENGAGED",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%I0.2.0",
-            connectorPin = "J14 / Pin N"
-        ),
-        CumminsSafetyInterlock(
-            id = 2,
-            name = "Local / Remote Control Isolation",
-            condition = "REMOTELY WHEN ENGINE IS UNDER LOCAL CONTROL",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%I0.2.1",
-            connectorPin = "X9 / Pin 1-2"
-        ),
-        CumminsSafetyInterlock(
-            id = 3,
-            name = "Safety Device Trip Memory Reset",
-            condition = "SAFETY DEVICE OPERATED (MUST RESET BEFORE RESTART)",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%M20_SAFETY_LATCH",
-            connectorPin = "Internal Coil"
-        ),
-        CumminsSafetyInterlock(
-            id = 4,
-            name = "Expansion Tank Fresh Water Level",
-            condition = "LOW FRESH WATER LEVEL IN EXPANSION TANK",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%I0.2.2",
-            connectorPin = "J14 / Pin M"
-        ),
-        CumminsSafetyInterlock(
-            id = 5,
-            name = "Safety Shutdown Active Latch",
-            condition = "ANY SAFETY SHUTDOWN ACTIVATED AND RESET NOT DONE",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%M21_SHUTDOWN_LATCH",
-            connectorPin = "Internal Coil"
-        ),
-        CumminsSafetyInterlock(
-            id = 6,
-            name = "Emergency Stop Circuit Continuity",
-            condition = "EMERGENCY STOP IS PRESSED (LOCAL OR REMOTE)",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%I0.2.3 (NC Loop)",
-            connectorPin = "X9 / Pin 3-4 & Panel PB"
-        ),
-        CumminsSafetyInterlock(
-            id = 7,
-            name = "Marine Gearbox Neutral Interlock",
-            condition = "CLUTCH NOT IN NEUTRAL POSITION",
-            preventsEngineStart = true,
-            activeState = false,
-            digitalInputTag = "%I0.2.4",
-            connectorPin = "J7 / Pin D"
-        )
+        CumminsSafetyInterlock(1, "Turning Gear Disengagement Interlock", "TURNING GEAR ENGAGED", true, false, "%I0.2.0", "J14 / Pin N"),
+        CumminsSafetyInterlock(2, "Local / Remote Control Isolation", "REMOTELY WHEN ENGINE IS UNDER LOCAL CONTROL", true, false, "%I0.2.1", "X9 / Pin 1-2"),
+        CumminsSafetyInterlock(3, "Safety Device Trip Memory Reset", "SAFETY DEVICE OPERATED (MUST RESET BEFORE RESTART)", true, false, "%M20_SAFETY_LATCH", "Internal Coil"),
+        CumminsSafetyInterlock(4, "Expansion Tank Fresh Water Level", "LOW FRESH WATER LEVEL IN EXPANSION TANK", true, false, "%I0.2.2", "J14 / Pin M"),
+        CumminsSafetyInterlock(5, "Safety Shutdown Active Latch", "ANY SAFETY SHUTDOWN ACTIVATED AND RESET NOT DONE", true, false, "%M21_SHUTDOWN_LATCH", "Internal Coil"),
+        CumminsSafetyInterlock(6, "Emergency Stop Circuit Continuity", "EMERGENCY STOP IS PRESSED (LOCAL OR REMOTE)", true, false, "%I0.2.3 (NC Loop)", "X9 / Pin 3-4"),
+        CumminsSafetyInterlock(7, "Marine Gearbox Neutral Interlock", "CLUTCH NOT IN NEUTRAL POSITION", true, false, "%I0.2.4", "J7 / Pin D")
     )
 }
