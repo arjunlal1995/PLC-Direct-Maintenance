@@ -1,0 +1,43 @@
+{
+  "system": {
+    "engine": "Cummins Marine Diesel Engine (Model KTA19 / KTA38 / KTA50)",
+    "vessel": "Baljeeth Bajrang Main Propulsion / Cummins Auxiliary DG",
+    "drawings": [
+      {
+        "drawingNumber": "A067B091",
+        "description": "Marine DG Local Control Panel (YD 305/307) Schematic",
+        "oem": "Accurate Industrial Controls Pvt. Ltd. / Cummins India Ltd."
+      },
+      {
+        "drawingNumber": "6453449",
+        "description": "Baljeeth Bajrang Main Engine Local Control Panel & Interlocks",
+        "oem": "Cummins Power Generation Marine"
+      }
+    ],
+    "hmi": {
+      "model": "Schneider Electric HMIGTO3510",
+      "display": "7.0 inch TFT Color 65K colors 800x480 WVGA",
+      "communication": "Modbus TCP over Ethernet RJ45 & RS485 Sub-D 9-pin"
+    },
+    "plc": {
+      "cpu": "Schneider Electric Modicon TM241CEC24U",
+      "expansionModules": [
+        "TM3DI8G (8x Digital Input 24VDC Spring Terminal)",
+        "TM3DQ8TG (8x Transistor Output 24VDC 0.5A)",
+        "TM3AI8G (8x Analog Input 4-20mA / 0-10V 12-bit)",
+        "TM3TI4G (4x Temperature RTD PT100 / Thermocouple J/K)"
+      ]
+    },
+    "powerSupply": {
+      "mains": "Phoenix Contact QUINT-PS/3AC/24DC/10 (Part No. 2866763)",
+      "redundancy": "Phoenix Contact TRIO-DIODE/12-24DC/2X10/1X20 (Part No. 2866514)",
+      "batteryBackup": "2x Exide SMF 12V 7.2Ah (24VDC Floating Battery Bank)"
+    },
+    "connectors": [
+      { "tag": "J5 / X5", "type": "Amphenol MS3102R 28A-51P", "duty": "Engine 24VDC Power & Starter Solenoids" },
+      { "tag": "J7 / X7", "type": "Amphenol MS3102R 28-12PW", "duty": "Clutch, Neutral & Gearbox Feedback" },
+      { "tag": "J12 / X12", "type": "Amphenol MS3102R 14S-6P", "duty": "Remote Bridge E-Stop & Annunciator" },
+      { "tag": "J14 / X14", "type": "Amphenol MS3102R 24-28S", "duty": "MPU Frequency & Analog Transmitters" }
+    ]
+  }
+}
