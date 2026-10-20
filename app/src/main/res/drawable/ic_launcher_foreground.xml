@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- PLC body -->
+    <path
+        android:fillColor="#263D52"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:pathData="M25,29 L83,29 L83,79 L25,79 Z" />
+
+    <!-- PLC top panel -->
+    <path
+        android:fillColor="#087F8C"
+        android:pathData="M25,29 L83,29 L83,42 L25,42 Z" />
+
+    <!-- Status indicators -->
+    <path
+        android:fillColor="#55E69A"
+        android:pathData="M33,34 m-2.5,0 a2.5,2.5 0,1 0,5 0 a2.5,2.5 0,1 0,-5 0" />
+
+    <path
+        android:fillColor="#FFD166"
+        android:pathData="M43,34 m-2.5,0 a2.5,2.5 0,1 0,5 0 a2.5,2.5 0,1 0,-5 0" />
+
+    <!-- Module separators -->
+    <path
+        android:fillColor="#142536"
+        android:pathData="M39,47 L42,47 L42,72 L39,72 Z M52,47 L55,47 L55,72 L52,72 Z M65,47 L68,47 L68,72 L65,72 Z" />
+
+    <!-- Module indicators -->
+    <path
+        android:fillColor="#55E69A"
+        android:pathData="M32,51 L36,51 L36,55 L32,55 Z M45,51 L49,51 L49,55 L45,55 Z M58,51 L62,51 L62,55 L58,55 Z M71,51 L75,51 L75,55 L71,55 Z" />
+
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,61 L36,61 L36,65 L32,65 Z M45,61 L49,61 L49,65 L45,65 Z M58,61 L62,61 L62,65 L58,65 Z M71,61 L75,61 L75,65 L71,65 Z" />
+
+    <!-- Base -->
+    <path
+        android:fillColor="#087F8C"
+        android:pathData="M21,80 L87,80 L87,85 L21,85 Z" />
+
+</vector>
