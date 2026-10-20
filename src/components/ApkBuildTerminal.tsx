@@ -28,15 +28,16 @@ export const ApkBuildTerminal: React.FC = () => {
     '> Task :app:compileReleaseKotlin',
     '  - Compiling SchneiderUsbDriver.kt (USB-B OTG CDC-ACM / FTDI)',
     '  - Compiling SchneiderModbusTcpDriver.kt (RJ-45 Modbus TCP 502)',
+    '  - Compiling SchneiderMdnsAndHeartbeatScanner.kt (mDNS ZeroConf & UDP 1740 Heartbeat)',
     '  - Compiling NotificationHelper.kt (Max Priority Heads-Up Channels)',
     '  - Compiling MainActivity.kt (Jetpack Compose Harmony HMI UI)',
-    '> Task :app:mergeReleaseDex [classes.dex generated]',
-    '> Task :app:processReleaseResources [device_filter.xml processed]',
+    '> Task :app:mergeReleaseDex [classes.dex generated with MulticastLock & NsdManager]',
+    '> Task :app:processReleaseResources [device_filter.xml + multicast permissions processed]',
     '> Task :app:packageRelease',
     '> Task :app:zipalignRelease',
     '> Task :app:signReleaseApk [V1, V2, V3 signature schemes applied]',
-    'BUILD SUCCESSFUL in 3.8s (38 actionable tasks: 38 executed)',
-    'Target output: app/build/outputs/apk/release/PLCDirectMaintenance-v1.0.0-release.apk'
+    'BUILD SUCCESSFUL in 3.8s (39 actionable tasks: 39 executed)',
+    'Target output: app/build/outputs/apk/release/PLCDirectMaintenance-Android14-v1.4.0-release.apk'
   ]);
 
   const triggerBuild = async () => {
@@ -46,12 +47,12 @@ export const ApkBuildTerminal: React.FC = () => {
     setLogs(['$ ./gradlew assembleRelease --stacktrace']);
 
     const steps = [
-      { msg: '> Starting Gradle Daemon...', delay: 400, prog: 25 },
-      { msg: '> Task :app:compileReleaseKotlin [Compiling Schneider USB & RJ-45 drivers]...', delay: 800, prog: 50 },
-      { msg: '> Task :app:mergeReleaseDex [Packaging Dalvik Executable bytecode]...', delay: 600, prog: 75 },
-      { msg: '> Task :app:processReleaseResources [Embedding USB device_filter.xml]...', delay: 500, prog: 90 },
-      { msg: '> Task :app:signReleaseApk [V1+V2+V3 Signed]...', delay: 400, prog: 100 },
-      { msg: 'BUILD SUCCESSFUL! APK generated and ready for deployment.', delay: 200, prog: 100 },
+      { msg: '> Starting Gradle Daemon 8.5...', delay: 350, prog: 20 },
+      { msg: '> Task :app:compileReleaseKotlin [Compiling Schneider USB-B, RJ-45 & mDNS/UDP Heartbeat Scanner]...', delay: 700, prog: 45 },
+      { msg: '> Task :app:mergeReleaseDex [Packaging Dalvik bytecode DEX 039 with NsdManager & MulticastLock]...', delay: 600, prog: 70 },
+      { msg: '> Task :app:processReleaseResources [Embedding USB device_filter.xml & CHANGE_WIFI_MULTICAST_STATE]...', delay: 450, prog: 85 },
+      { msg: '> Task :app:signReleaseApk [V1+V2+V3 Signed for OxygenOS 16 / Android 14+]...', delay: 400, prog: 100 },
+      { msg: 'BUILD SUCCESSFUL! APK generated with full mDNS and Broadcast Heartbeat scanner capabilities.', delay: 200, prog: 100 },
     ];
 
     for (const step of steps) {

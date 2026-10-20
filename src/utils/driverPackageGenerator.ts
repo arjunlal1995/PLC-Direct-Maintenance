@@ -649,3 +649,317 @@ export const NEARBY_WIRELESS_PLCS: NetworkDevice[] = [
   }
 ];
 
+/**
+ * Schneider hardware identified via Multicast DNS (mDNS / ZeroConf)
+ * Advertising services: _modbus._tcp.local, _schneider-epac._udp.local, _umas._tcp.local
+ */
+export const MDNS_SCHNEIDER_DEVICES: NetworkDevice[] = [
+  {
+    id: 'mdns-m580-propulsion',
+    ip: '192.168.1.10',
+    mac: '00:80:F4:1A:2B:3C',
+    vendor: 'Schneider Electric',
+    model: 'Modicon M580 ePAC (BMEP584040)',
+    hardwareSeries: 'Modicon M580 Hot-Standby Primary',
+    category: 'PLC',
+    protocols: ['_schneider-epac._udp.local', '_modbus._tcp.local', '_umas._tcp.local'],
+    openPorts: [502, 1740, 80, 443],
+    rttMs: 1.4,
+    status: 'ONLINE',
+    firmware: 'v4.10.15 (FIPS-140-3 Enforced)',
+    subsystemLocation: 'Main Propulsion Engine Room Rack #0 Slot #0',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'MDNS_ZEROCONF',
+    mdnsDetails: {
+      serviceName: 'Schneider-M580-Propulsion-ECR._schneider-epac._udp.local.',
+      serviceType: '_schneider-epac._udp.local',
+      domain: 'local.',
+      hostTarget: 'schneider-m580-01.local.',
+      port: 502,
+      resolvedIp: '192.168.1.10',
+      ttlSeconds: 120,
+      txtRecords: {
+        vendor: 'Schneider Electric',
+        model: 'BMEP584040',
+        firmware: 'v4.10.15',
+        mac: '00:80:F4:1A:2B:3C',
+        cpuState: 'RUN',
+        rackSlot: 'Rack 0 / Slot 0',
+        rstpRing: 'RING_CLOSED_HEALTHY',
+        securityLevel: 'Achilles Level 2 & IEC 62443-4-2',
+        umasPort: '1740',
+        modbusPort: '502'
+      }
+    },
+    driver: {
+      driverId: 'schneider_m580_mdns_driver',
+      name: 'Schneider Modicon M580 ZeroConf & Modbus Driver',
+      version: 'v4.5.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.48 MB',
+      downloadFileName: 'Schneider_M580_mDNS_Driver.zip',
+      description: 'Native Android NsdManager zero-configuration driver with auto-resolution of Modicon M580 services.',
+      supportedAndroidVersions: 'Android 14+ (API 34/35) & OxygenOS 16',
+      jniLibs: ['libmodbus_tcp_jni.so', 'libnsd_schneider.so'],
+      defaultPort: 502,
+      defaultUnitId: 255,
+      sampleRegisterMap: [
+        { tag: '%MW100', description: 'Sea Water Pump Discharge Pressure (Bar x 100)', scale: '0.01' },
+        { tag: '%MW101', description: 'Cylinder Jacket Temperature (°C)', scale: '1.0' },
+        { tag: '%MW102', description: 'Main Flywheel Shaft Speed (RPM)', scale: '1.0' },
+        { tag: '%SW0', description: 'M580 System Word (CPU Status & Health)', scale: 'Hex' }
+      ]
+    }
+  },
+  {
+    id: 'mdns-m340-aux',
+    ip: '192.168.1.16',
+    mac: '00:80:F4:44:55:66',
+    vendor: 'Schneider Electric',
+    model: 'Modicon M340 High-Density CPU (BMXP342020)',
+    hardwareSeries: 'Modicon M340 Ethernet',
+    category: 'PLC',
+    protocols: ['_modbus._tcp.local', 'Modbus TCP (502)', 'FTP (21)'],
+    openPorts: [502, 21, 80],
+    rttMs: 1.9,
+    status: 'ONLINE',
+    firmware: 'v3.20.02 build 88',
+    subsystemLocation: 'Auxiliary Generator Synchronizing Bay #2',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'MDNS_ZEROCONF',
+    mdnsDetails: {
+      serviceName: 'Schneider-M340-AuxGen-Sync._modbus._tcp.local.',
+      serviceType: '_modbus._tcp.local',
+      domain: 'local.',
+      hostTarget: 'schneider-m340-aux.local.',
+      port: 502,
+      resolvedIp: '192.168.1.16',
+      ttlSeconds: 240,
+      txtRecords: {
+        vendor: 'Schneider Electric',
+        model: 'BMXP342020',
+        firmware: 'v3.20.02',
+        mac: '00:80:F4:44:55:66',
+        cpuState: 'RUN',
+        rackSlot: 'Rack 0 / Slot 1',
+        modbusPort: '502'
+      }
+    },
+    driver: {
+      driverId: 'schneider_m340_mdns_driver',
+      name: 'Schneider Modicon M340 mDNS Modbus Driver',
+      version: 'v3.9.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.15 MB',
+      downloadFileName: 'Schneider_M340_mDNS_Driver.zip',
+      description: 'ZeroConf resolver and register poller for Modicon M340 over Ethernet and native USB-B.',
+      supportedAndroidVersions: 'Android 14+',
+      jniLibs: ['libmodbus_tcp_jni.so'],
+      defaultPort: 502,
+      defaultUnitId: 1,
+      sampleRegisterMap: [
+        { tag: '%MW200', description: 'Alternator Bus Voltage (VAC)', scale: '0.1' },
+        { tag: '%MW201', description: 'Alternator Grid Frequency (Hz)', scale: '0.01' }
+      ]
+    }
+  },
+  {
+    id: 'mdns-atv930-drive',
+    ip: '192.168.1.30',
+    mac: '00:80:F4:77:88:99',
+    vendor: 'Schneider Electric',
+    model: 'Altivar Process ATV930 VFD (ATV930C16N4C)',
+    hardwareSeries: 'Altivar Process 900',
+    category: 'DRIVE_VFD',
+    protocols: ['_modbus._tcp.local', '_schneider-drive._udp.local'],
+    openPorts: [502, 80],
+    rttMs: 2.5,
+    status: 'ONLINE',
+    firmware: 'v2.1 IE4 Motor Optimized',
+    subsystemLocation: 'Bow Thruster Variable Speed Inverter Bay',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'MDNS_ZEROCONF',
+    mdnsDetails: {
+      serviceName: 'ATV930-BowThruster-160kW._modbus._tcp.local.',
+      serviceType: '_modbus._tcp.local',
+      domain: 'local.',
+      hostTarget: 'atv930-bow-thruster.local.',
+      port: 502,
+      resolvedIp: '192.168.1.30',
+      ttlSeconds: 300,
+      txtRecords: {
+        vendor: 'Schneider Electric',
+        model: 'ATV930C16N4C',
+        rating: '160 kW / 215 HP',
+        motorSpeed: '1485 RPM',
+        motorCurrent: '285 A'
+      }
+    },
+    driver: {
+      driverId: 'schneider_atv930_vfd_driver',
+      name: 'Schneider Altivar Process ATV930 Inverter Driver',
+      version: 'v3.1.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.25 MB',
+      downloadFileName: 'Schneider_ATV930_Driver.zip',
+      description: 'Real-time telemetry and speed reference driver for Altivar Process 930 VFD.',
+      supportedAndroidVersions: 'Android 14+',
+      jniLibs: ['libmodbus_tcp_jni.so'],
+      defaultPort: 502,
+      defaultUnitId: 1,
+      sampleRegisterMap: [
+        { tag: 'ETA', description: 'Drive State Register (%MW3201)', scale: 'Word' },
+        { tag: 'RFRD', description: 'Drive Output Frequency (%MW3202)', scale: '0.1 Hz' }
+      ]
+    }
+  }
+];
+
+/**
+ * Schneider hardware identified via cyclic UDP Broadcast Heartbeat frames
+ * Transmitted periodically on UDP Port 1740 (UMAS) and Port 2222 (EtherNet/IP).
+ */
+export const HEARTBEAT_SCHNEIDER_DEVICES: NetworkDevice[] = [
+  {
+    id: 'hb-m580-hotstandby-a',
+    ip: '192.168.1.10',
+    mac: '00:80:F4:1A:2B:3C',
+    vendor: 'Schneider Electric',
+    model: 'Modicon M580 Hot-Standby Primary (BMEP586040)',
+    hardwareSeries: 'Modicon M580 Dual-Redundant',
+    category: 'PLC',
+    protocols: ['Schneider UMAS Heartbeat (UDP 1740)', 'Modbus TCP (502)', 'RSTP Loop'],
+    openPorts: [502, 1740],
+    rttMs: 1.1,
+    status: 'ONLINE',
+    firmware: 'v4.10.15 Hot-Standby Primary',
+    subsystemLocation: 'Redundant Propulsion Rack A (Active Primary)',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'UDP_BROADCAST_HEARTBEAT',
+    heartbeatDetails: {
+      sourceIp: '192.168.1.10',
+      port: 1740,
+      protocol: 'SCHNEIDER_UMAS_BEACON',
+      family: 'Schneider Modicon M580 ePAC (0x0580)',
+      sequenceNumber: 48921,
+      cpuState: 'RUN',
+      scanCycleMs: 11.8,
+      rawHexPreamble: '53 45 48 42 05 80 00 01 00 80 F4 1A 2B 3C 00 00 BF 19',
+      timestamp: Date.now(),
+      rstpRingStatus: 'RING_CLOSED_HEALTHY',
+      batteryStatus: 'OK'
+    },
+    driver: {
+      driverId: 'schneider_m580_hotstandby_primary',
+      name: 'Schneider M580 Hot-Standby Primary Driver',
+      version: 'v4.6.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.52 MB',
+      downloadFileName: 'Schneider_M580_Primary_Driver.zip',
+      description: 'Hot-Standby auto-failover driver listening to periodic UDP 1740 UMAS heartbeats.',
+      supportedAndroidVersions: 'Android 14+ / OxygenOS 16',
+      jniLibs: ['libmodbus_tcp_jni.so', 'libumas_heartbeat.so'],
+      defaultPort: 502,
+      defaultUnitId: 255,
+      sampleRegisterMap: [
+        { tag: '%MW100', description: 'Sea Water Cooling Pump Pressure (Bar x 100)', scale: '0.01' },
+        { tag: '%MW101', description: 'Jacket Coolant High Temperature (Deg C)', scale: '1.0' },
+        { tag: '%SW50', description: 'Redundant Hot-Standby State Bitfield', scale: 'Word' }
+      ]
+    }
+  },
+  {
+    id: 'hb-m580-hotstandby-b',
+    ip: '192.168.1.11',
+    mac: '00:80:F4:1A:2B:3D',
+    vendor: 'Schneider Electric',
+    model: 'Modicon M580 Hot-Standby Standby (BMEP586040)',
+    hardwareSeries: 'Modicon M580 Dual-Redundant',
+    category: 'PLC',
+    protocols: ['Schneider UMAS Heartbeat (UDP 1740)', 'Sync Optical Bus'],
+    openPorts: [502, 1740],
+    rttMs: 1.2,
+    status: 'STANDBY',
+    firmware: 'v4.10.15 Hot-Standby Secondary',
+    subsystemLocation: 'Redundant Propulsion Rack B (Synchronized Standby)',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'UDP_BROADCAST_HEARTBEAT',
+    heartbeatDetails: {
+      sourceIp: '192.168.1.11',
+      port: 1740,
+      protocol: 'SCHNEIDER_UMAS_BEACON',
+      family: 'Schneider Modicon M580 ePAC (0x0580)',
+      sequenceNumber: 48920,
+      cpuState: 'RUN',
+      scanCycleMs: 12.0,
+      rawHexPreamble: '53 45 48 42 05 80 00 02 00 80 F4 1A 2B 3D 00 00 BF 18',
+      timestamp: Date.now(),
+      rstpRingStatus: 'RING_CLOSED_HEALTHY',
+      batteryStatus: 'OK'
+    },
+    driver: {
+      driverId: 'schneider_m580_hotstandby_secondary',
+      name: 'Schneider M580 Standby Mirror Driver',
+      version: 'v4.6.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.50 MB',
+      downloadFileName: 'Schneider_M580_Secondary_Driver.zip',
+      description: 'Passive telemetry mirror driver bound to Standby CPU via heartbeat monitoring.',
+      supportedAndroidVersions: 'Android 14+',
+      jniLibs: ['libmodbus_tcp_jni.so', 'libumas_heartbeat.so'],
+      defaultPort: 502,
+      defaultUnitId: 255,
+      sampleRegisterMap: [
+        { tag: '%SW50', description: 'Redundant Hot-Standby Secondary State', scale: 'Word' }
+      ]
+    }
+  },
+  {
+    id: 'hb-m580-sil3-safety',
+    ip: '192.168.1.14',
+    mac: '00:80:F4:99:AA:BB',
+    vendor: 'Schneider Electric',
+    model: 'Modicon M580 SIL3 Safety ePAC (BMEP584040S)',
+    hardwareSeries: 'Modicon M580 SIL3 Certified',
+    category: 'PLC',
+    protocols: ['EtherNet/IP Heartbeat (UDP 2222)', 'CIP Safety (44818)', 'Modbus TCP (502)'],
+    openPorts: [502, 2222, 44818],
+    rttMs: 1.5,
+    status: 'ONLINE',
+    firmware: 'v3.20.08 Marine SIL3',
+    subsystemLocation: 'Emergency Shutdown System (ESD) Skid Console',
+    lastSeen: Date.now(),
+    discoveryProtocol: 'UDP_BROADCAST_HEARTBEAT',
+    heartbeatDetails: {
+      sourceIp: '192.168.1.14',
+      port: 2222,
+      protocol: 'ETHERNET_IP_HEARTBEAT',
+      family: 'Schneider Modicon M580 SIL3 Safety (0x0580S)',
+      sequenceNumber: 10452,
+      cpuState: 'RUN',
+      scanCycleMs: 8.5,
+      rawHexPreamble: '45 49 50 48 05 80 53 01 00 80 F4 99 AA BB 00 00 A1 02',
+      timestamp: Date.now(),
+      rstpRingStatus: 'RING_CLOSED_HEALTHY',
+      batteryStatus: 'OK'
+    },
+    driver: {
+      driverId: 'schneider_m580_sil3_heartbeat',
+      name: 'Schneider Modicon M580 SIL3 Safety Driver',
+      version: 'v4.3.0-android14',
+      type: 'MODBUS_TCP_JNI',
+      packageSize: '1.65 MB',
+      downloadFileName: 'Schneider_M580_SIL3_Driver.zip',
+      description: 'Certified SIL3 safety diagnostic reader over UDP 2222 heartbeat and Modbus TCP.',
+      supportedAndroidVersions: 'Android 14+ (API 34/35)',
+      jniLibs: ['libm580_safety_stack.so'],
+      defaultPort: 502,
+      defaultUnitId: 1,
+      sampleRegisterMap: [
+        { tag: '%M1', description: 'Emergency Stop Circuit Loop (1 = TRIPPED)', scale: 'Digital' },
+        { tag: '%M0', description: 'Engine Run Permissive Interlock', scale: 'Digital' }
+      ]
+    }
+  }
+];
+

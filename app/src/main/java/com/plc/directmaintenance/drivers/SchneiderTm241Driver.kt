@@ -1,6 +1,7 @@
 package com.plc.directmaintenance.drivers
 
-import com.plc.directmaintenance.model.CumminsEngineCatalog
+import android.util.Log
+import com.plc.directmaintenance.model.CumminsMarineEngineProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.InputStream
@@ -9,111 +10,176 @@ import java.net.InetSocketAddress
 import java.net.Socket
 
 /**
- * Driver for Schneider Electric Modicon TM241CEC24U & TM3 Expansion Modules.
- * Communicates over Port 502 (Modbus TCP) via OTG Ethernet / Wi-Fi.
+ * Native Modbus TCP driver specialized for the Schneider Modicon TM241CEC24U
+ * and TM3 expansion modules (TM3DI8G, TM3DQ8TG, TM3AI8G, TM3TI4G)
+ * installed in the Marine Local Control Panel (Drawing A067B091 / YD 305/307).
  */
 class SchneiderTm241Driver(
-    private val plcIpAddress: String = "192.168.1.10",
+    private val ipAddress: String = "192.168.1.10",
     private val port: Int = 502,
-    private val timeoutMs: Int = 3000
+    private val slaveId: Byte = 1
 ) {
-    data class EngineReadout(
-        val rpm: Double,
-        val oilPressureBar: Double,
-        val oilTempC: Double,
-        val seaWaterPressBar: Double,
-        val coolantTempC: Double,
-        val exhaustTempLeftC: Double,
-        val exhaustTempRightC: Double,
-        val isTurningGearEngaged: Boolean,
-        val isLowCoolantLevel: Boolean,
-        val isEmergencyStopTriggered: Boolean,
-        val isOverspeedTrip: Boolean,
-        val isLowOilTrip: Boolean
-    )
+    companion object {
+        private const val TAG = "SchneiderTm241Driver"
+        const val TIMEOUT_MS = 3000
+    }
 
-    suspend fun readTelemetry(): Result<EngineReadout> = withContext(Dispatchers.IO) {
-        var socket: Socket? = null
+    private var socket: Socket? = null
+    private var inputStream: InputStream? = null
+    private var outputStream: OutputStream? = null
+    private var transactionId = 0
+
+    suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
         try {
-            socket = Socket()
-            socket.connect(InetSocketAddress(plcIpAddress, port), timeoutMs)
-            socket.soTimeout = timeoutMs
-
-            val outStream = socket.getOutputStream()
-            val inStream = socket.getInputStream()
-
-            // Modbus TCP Function 03: Read Holding Registers %MW0 to %MW7 (8 words)
-            // MBAP Header (Transaction 0x0001, Protocol 0x0000, Length 0x0006, Unit 0x01)
-            val request = byteArrayOf(
-                0x00, 0x01, // Transaction ID
-                0x00, 0x00, // Protocol ID (Modbus)
-                0x00, 0x06, // Length (6 bytes follow)
-                0x01,       // Unit ID (PLC slave address)
-                0x03,       // Function 03 (Read Holding Registers)
-                0x00, 0x00, // Starting Address (%MW0)
-                0x00, 0x08  // Quantity of registers (8 registers)
-            )
-
-            outStream.write(request)
-            outStream.flush()
-
-            val response = ByteArray(64)
-            val bytesRead = inStream.read(response)
-            if (bytesRead < 9) {
-                return@withContext Result.failure(Exception("Incomplete Modbus response received from TM241"))
+            disconnect()
+            socket = Socket().apply {
+                connect(InetSocketAddress(ipAddress, port), TIMEOUT_MS)
+                soTimeout = TIMEOUT_MS
+                tcpNoDelay = true
             }
-
-            // Parse registers %MW0 - %MW7
-            val byteCount = response[8].toInt() and 0xFF
-            if (byteCount < 16) {
-                return@withContext Result.failure(Exception("Expected 16 data bytes, received $byteCount"))
-            }
-
-            fun readRegister(index: Int): Int {
-                val offset = 9 + (index * 2)
-                val high = response[offset].toInt() and 0xFF
-                val low = response[offset + 1].toInt() and 0xFF
-                return (high shl 8) or low
-            }
-
-            val rawRpm = readRegister(0)
-            val rawOilTemp = readRegister(1)
-            val rawOilPress = readRegister(2)
-            val rawSeaWater = readRegister(3)
-            val rawFuelPress = readRegister(4)
-            val rawCoolantTemp = readRegister(5)
-            val rawExhaustL = readRegister(6)
-            val rawExhaustR = readRegister(7)
-
-            // Scaling: 4-20mA TM3AI8G resolution = 0 to 10000 (0.01 bar / 0.1 °C resolution)
-            val rpm = rawRpm.toDouble()
-            val oilPress = rawOilPress / 100.0
-            val oilTemp = rawOilTemp / 10.0
-            val seaWaterPress = rawSeaWater / 100.0
-            val coolantTemp = rawCoolantTemp / 10.0
-            val exhaustL = rawExhaustL.toDouble()
-            val exhaustR = rawExhaustR.toDouble()
-
-            val readout = EngineReadout(
-                rpm = rpm,
-                oilPressureBar = oilPress,
-                oilTempC = oilTemp,
-                seaWaterPressBar = seaWaterPress,
-                coolantTempC = coolantTemp,
-                exhaustTempLeftC = exhaustL,
-                exhaustTempRightC = exhaustR,
-                isTurningGearEngaged = false,
-                isLowCoolantLevel = false,
-                isEmergencyStopTriggered = false,
-                isOverspeedTrip = rpm >= 1980.0,
-                isLowOilTrip = oilPress <= 0.8 && rpm > 600.0
-            )
-
-            Result.success(readout)
+            inputStream = socket?.getInputStream()
+            outputStream = socket?.getOutputStream()
+            Log.i(TAG, "Connected to Schneider TM241 PLC at $ipAddress:$port")
+            true
         } catch (e: Exception) {
-            Result.failure(e)
-        } finally {
-            try { socket?.close() } catch (_: Exception) {}
+            Log.e(TAG, "Failed to connect to Schneider TM241: ${e.message}")
+            disconnect()
+            false
+        }
+    }
+
+    fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
+
+    fun disconnect() {
+        try {
+            inputStream?.close()
+            outputStream?.close()
+            socket?.close()
+        } catch (_: Exception) {}
+        socket = null
+        inputStream = null
+        outputStream = null
+    }
+
+    /**
+     * Reads Analog Input holding registers (FC03 / FC04)
+     * Address mapping:
+     * 30001: Engine Speed RPM (Astronic F/I converter)
+     * 30002: Lub Oil Temp (0-150 °C, 4-20mA via TM3AI8G)
+     * 30003: Lub Oil Pressure (0-16 bar via TM3AI8G)
+     * 30004: Sea Water Pressure (0-6 bar via TM3AI8G)
+     * 30005: Fuel Pressure (0-16 bar via TM3AI8G)
+     * 30006: Coolant Temp (0-150 °C via TM3AI8G)
+     * 30007: Exhaust Temp LB (0-800 °C via TM3TI4G thermocouple)
+     * 30008: Exhaust Temp RB (0-800 °C via TM3TI4G thermocouple)
+     */
+    suspend fun readTelemetryRegisters(startRegister: Int = 0, count: Int = 10): IntArray? = withContext(Dispatchers.IO) {
+        if (!isConnected()) return@withContext null
+
+        try {
+            transactionId = (transactionId + 1) and 0xFFFF
+            val out = outputStream ?: return@withContext null
+            val input = inputStream ?: return@withContext null
+
+            // Modbus TCP ADU: [TransId (2)] [ProtoId 0 (2)] [Length (2)] [UnitId (1)] [FC (1)] [Start (2)] [Count (2)]
+            val request = byteArrayOf(
+                (transactionId shr 8).toByte(),
+                (transactionId and 0xFF).toByte(),
+                0x00, 0x00, // Protocol ID: Modbus (0)
+                0x00, 0x06, // Length remaining (6 bytes)
+                slaveId,
+                0x03,       // Function Code: Read Holding Registers
+                (startRegister shr 8).toByte(),
+                (startRegister and 0xFF).toByte(),
+                (count shr 8).toByte(),
+                (count and 0xFF).toByte()
+            )
+
+            out.write(request)
+            out.flush()
+
+            val header = ByteArray(7)
+            var bytesRead = 0
+            while (bytesRead < 7) {
+                val r = input.read(header, bytesRead, 7 - bytesRead)
+                if (r < 0) return@withContext null
+                bytesRead += r
+            }
+
+            val respLength = ((header[4].toInt() and 0xFF) shl 8) or (header[5].toInt() and 0xFF)
+            val pdu = ByteArray(respLength - 1)
+            bytesRead = 0
+            while (bytesRead < pdu.size) {
+                val r = input.read(pdu, bytesRead, pdu.size - bytesRead)
+                if (r < 0) return@withContext null
+                bytesRead += r
+            }
+
+            val fc = pdu[0].toInt() and 0xFF
+            if (fc != 0x03) {
+                Log.w(TAG, "Modbus exception or unexpected FC: $fc")
+                return@withContext null
+            }
+
+            val byteCount = pdu[1].toInt() and 0xFF
+            val resultCount = byteCount / 2
+            val values = IntArray(resultCount)
+            for (i in 0 until resultCount) {
+                val high = pdu[2 + i * 2].toInt() and 0xFF
+                val low = pdu[3 + i * 2].toInt() and 0xFF
+                values[i] = (high shl 8) or low
+            }
+            values
+        } catch (e: Exception) {
+            Log.e(TAG, "Read registers failed: ${e.message}")
+            disconnect()
+            null
+        }
+    }
+
+    /**
+     * Forces digital coil (FC05) for actions like:
+     * %M1: Emergency Stop Reset
+     * %M10: Acknowledge Horn / Siren
+     * %M18: Pre-lube Oil Pump Manual Start
+     */
+    suspend fun writeCoil(coilAddress: Int, state: Boolean): Boolean = withContext(Dispatchers.IO) {
+        if (!isConnected()) return@withContext false
+
+        try {
+            transactionId = (transactionId + 1) and 0xFFFF
+            val out = outputStream ?: return@withContext false
+            val input = inputStream ?: return@withContext false
+
+            val coilValue = if (state) 0xFF00 else 0x0000
+            val request = byteArrayOf(
+                (transactionId shr 8).toByte(),
+                (transactionId and 0xFF).toByte(),
+                0x00, 0x00,
+                0x00, 0x06,
+                slaveId,
+                0x05, // Write Single Coil
+                (coilAddress shr 8).toByte(),
+                (coilAddress and 0xFF).toByte(),
+                (coilValue shr 8).toByte(),
+                (coilValue and 0xFF).toByte()
+            )
+
+            out.write(request)
+            out.flush()
+
+            val response = ByteArray(12)
+            var bytesRead = 0
+            while (bytesRead < 12) {
+                val r = input.read(response, bytesRead, 12 - bytesRead)
+                if (r < 0) return@withContext false
+                bytesRead += r
+            }
+
+            response[7].toInt() == 0x05
+        } catch (e: Exception) {
+            Log.e(TAG, "Write coil failed: ${e.message}")
+            false
         }
     }
 }

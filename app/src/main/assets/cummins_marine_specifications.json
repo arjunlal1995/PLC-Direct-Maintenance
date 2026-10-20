@@ -1,43 +1,146 @@
 {
-  "system": {
-    "engine": "Cummins Marine Diesel Engine (Model KTA19 / KTA38 / KTA50)",
-    "vessel": "Baljeeth Bajrang Main Propulsion / Cummins Auxiliary DG",
-    "drawings": [
-      {
-        "drawingNumber": "A067B091",
-        "description": "Marine DG Local Control Panel (YD 305/307) Schematic",
-        "oem": "Accurate Industrial Controls Pvt. Ltd. / Cummins India Ltd."
-      },
-      {
-        "drawingNumber": "6453449",
-        "description": "Baljeeth Bajrang Main Engine Local Control Panel & Interlocks",
-        "oem": "Cummins Power Generation Marine"
-      }
-    ],
+  "panelSpec": {
+    "title": "Marine-Local Control Panel (YD 305 / 307)",
+    "drawingNumber": "A067B091",
+    "mainEngineDrawing": "6453449",
+    "customer": "Cummins India Ltd",
+    "panelManufacturer": "Accurate Industrial Controls Pvt Ltd",
+    "date": "28.06.2022",
     "hmi": {
-      "model": "Schneider Electric HMIGTO3510",
-      "display": "7.0 inch TFT Color 65K colors 800x480 WVGA",
-      "communication": "Modbus TCP over Ethernet RJ45 & RS485 Sub-D 9-pin"
+      "model": "HMIGTO3510",
+      "brand": "Schneider Electric",
+      "display": "7-inch color touchscreen",
+      "protocol": "Modbus TCP / Uni-TE"
     },
     "plc": {
-      "cpu": "Schneider Electric Modicon TM241CEC24U",
-      "expansionModules": [
-        "TM3DI8G (8x Digital Input 24VDC Spring Terminal)",
-        "TM3DQ8TG (8x Transistor Output 24VDC 0.5A)",
-        "TM3AI8G (8x Analog Input 4-20mA / 0-10V 12-bit)",
-        "TM3TI4G (4x Temperature RTD PT100 / Thermocouple J/K)"
-      ]
+      "model": "TM241CEC24U",
+      "brand": "Schneider Electric Modicon M241",
+      "inputsOutputs": "24 I/O integrated (14 DI, 10 Transistor DO)",
+      "ports": "Ethernet (RJ-45), CANopen, USB mini-B programming, RS485/RS232 serial"
     },
-    "powerSupply": {
-      "mains": "Phoenix Contact QUINT-PS/3AC/24DC/10 (Part No. 2866763)",
-      "redundancy": "Phoenix Contact TRIO-DIODE/12-24DC/2X10/1X20 (Part No. 2866514)",
-      "batteryBackup": "2x Exide SMF 12V 7.2Ah (24VDC Floating Battery Bank)"
+    "expansionModules": [
+      { "part": "TM3DI8G", "type": "Digital Input", "channels": 8, "terminal": "Spring clamp" },
+      { "part": "TM3DQ8TG", "type": "Digital Output", "channels": 8, "terminal": "Transistor Source" },
+      { "part": "TM3AI8G", "type": "Analog Input", "channels": 8, "range": "4-20mA / 0-10V" },
+      { "part": "TM3TI4G", "type": "RTD / Thermocouple", "channels": 4, "types": "PT100 / CR-AL K-Type" }
+    ],
+    "auxiliaryEquipment": {
+      "batteryCharger": "Phoenix Contact QUINT-PS/3AC/24DC/10 (Part 2866763)",
+      "redundancyModule": "Phoenix Contact TRIO-DIODE/12-24DC/2X10/1X20 (Part 2866514)",
+      "backupBatteries": "Exide SMF 12V 7.2Ah (2 Units in series = 24V DC)",
+      "speedConverter": "Astronic Frequency to Current (F/I) Converter",
+      "digitalHourMeter": "GIC LD17F1 10-80 VDC Flush Mounting",
+      "analogAmmeter": "Rishabh PQ71 72x72 0-30A 24VDC"
+    }
+  },
+  "sensorInstrumentation": [
+    {
+      "srNo": 1,
+      "parameter": "Engine Speed (MPU)",
+      "cumminsPart": "4912304",
+      "location": "Flywheel housing",
+      "range": "0-2000 RPM",
+      "teeth": 142,
+      "trip": "1980 RPM (Overspeed Trip)",
+      "modbusReg": "%MW0 / 30001"
     },
-    "connectors": [
-      { "tag": "J5 / X5", "type": "Amphenol MS3102R 28A-51P", "duty": "Engine 24VDC Power & Starter Solenoids" },
-      { "tag": "J7 / X7", "type": "Amphenol MS3102R 28-12PW", "duty": "Clutch, Neutral & Gearbox Feedback" },
-      { "tag": "J12 / X12", "type": "Amphenol MS3102R 14S-6P", "duty": "Remote Bridge E-Stop & Annunciator" },
-      { "tag": "J14 / X14", "type": "Amphenol MS3102R 24-28S", "duty": "MPU Frequency & Analog Transmitters" }
-    ]
-  }
+    {
+      "srNo": 2,
+      "parameter": "Lub Oil Temperature",
+      "cumminsPart": "4963242",
+      "location": "Lub Oil Pan",
+      "range": "0-150 °C",
+      "alarm": "121 °C",
+      "trip": "125 °C",
+      "modbusReg": "%MW1 / 30002"
+    },
+    {
+      "srNo": 3,
+      "parameter": "Lub Oil Pressure",
+      "cumminsPart": "5543059",
+      "location": "Main Oil Gallery",
+      "range": "0-16 bar",
+      "alarm": "1.2 bar",
+      "trip": "0.8 bar (Switch 4962856)",
+      "modbusReg": "%MW2 / 30003"
+    },
+    {
+      "srNo": 4,
+      "parameter": "Turning Gear Engaged",
+      "cumminsPart": "4368842",
+      "location": "Flywheel housing",
+      "range": "NO/NC Digital Contact",
+      "trip": "Inhibits Start when engaged",
+      "modbusReg": "%M10 / 10001"
+    },
+    {
+      "srNo": 5,
+      "parameter": "Sea Water Pressure",
+      "cumminsPart": "5543058",
+      "location": "Sea water system",
+      "range": "0-6 bar",
+      "alarm": "0.8 bar",
+      "trip": "Settable",
+      "modbusReg": "%MW3 / 30004"
+    },
+    {
+      "srNo": 6,
+      "parameter": "Fuel Pressure",
+      "cumminsPart": "5543059",
+      "location": "Fuel system",
+      "range": "0-16 bar",
+      "alarm": "Settable",
+      "trip": null,
+      "modbusReg": "%MW4 / 30005"
+    },
+    {
+      "srNo": 7,
+      "parameter": "Cooling Water Temperature",
+      "cumminsPart": "4963242",
+      "location": "Engine cooling jacket",
+      "range": "0-150 °C",
+      "alarm": "92 °C",
+      "trip": "97 °C (Switch 4962857)",
+      "modbusReg": "%MW5 / 30006"
+    },
+    {
+      "srNo": 8,
+      "parameter": "Exhaust Temp Left Bank",
+      "cumminsPart": "4911878",
+      "location": "Exhaust Elbow",
+      "range": "0-800 °C",
+      "alarm": "550 °C",
+      "trip": "Settable",
+      "modbusReg": "%MW6 / 30007"
+    },
+    {
+      "srNo": 9,
+      "parameter": "Exhaust Temp Right Bank",
+      "cumminsPart": "4911878",
+      "location": "Exhaust Elbow",
+      "range": "0-800 °C",
+      "alarm": "550 °C",
+      "trip": "Settable",
+      "modbusReg": "%MW7 / 30008"
+    },
+    {
+      "srNo": 10,
+      "parameter": "Low Coolant Level",
+      "cumminsPart": "4383931",
+      "location": "Fresh water expansion tank",
+      "range": "Digital Active High",
+      "alarm": "Low Level Alarm",
+      "trip": null,
+      "modbusReg": "%M12 / 10002"
+    }
+  ],
+  "safetyInterlocks": [
+    "1. WHEN TURNING GEAR IS ENGAGED - Prevents Engine Start",
+    "2. REMOTELY WHEN ENGINE IS UNDER LOCAL CONTROL - Prevents Remote Start",
+    "3. IF ANY SAFETY DEVICE HAS OPERATED, IT HAS TO BE RESET FIRST BEFORE RESTART",
+    "4. LOW FRESH WATER LEVEL IN THE EXPANSION TANK - Inhibits Start",
+    "5. ANY SAFETY SHUTDOWN IS ACTIVATED AND RESET NOT DONE",
+    "6. EMERGENCY STOP IS PRESSED (LOCAL / REMOTE)",
+    "7. WHEN CLUTCH NOT IN NEUTRAL"
+  ]
 }

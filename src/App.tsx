@@ -44,11 +44,15 @@ import { PredictiveAnalyticsTab } from './components/PredictiveAnalyticsTab';
 import { PackageInstallerModal } from './components/PackageInstallerModal';
 import { NightShiftControl } from './components/NightShiftControl';
 import { NightShiftProvider, useNightShift } from './context/NightShiftContext';
-import { RotateCcw as RotateIcon, ShieldAlert as ShieldIcon, Database, TrendingUp, Wifi, Terminal } from 'lucide-react';
+import { RealHardwareMaintenanceHub, HARDWARE_PROFILE } from './components/RealHardwareMaintenanceHub';
+import { CumminsMarineEnginePanel } from './components/CumminsMarineEnginePanel';
+import { SpecificFilesDownloadModal } from './components/SpecificFilesDownloadModal';
+import { RotateCcw as RotateIcon, ShieldAlert as ShieldIcon, Database, TrendingUp, Wifi, Terminal, Wrench, FolderTree } from 'lucide-react';
 
 function MainAppContent() {
   const { isNightShift, palette, highContrast } = useNightShift();
-  const [activeTab, setActiveTab] = useState<'hmi' | 'phone' | 'emergencyHmi' | 'readPlc' | 'diagnosticLog' | 'wiringSchematic' | 'predictive' | 'drivers' | 'notifications' | 'trend' | 'apk' | 'code'>('hmi');
+  const [activeTab, setActiveTab] = useState<'hmi' | 'realHardware' | 'cummins' | 'phone' | 'emergencyHmi' | 'readPlc' | 'diagnosticLog' | 'wiringSchematic' | 'predictive' | 'drivers' | 'notifications' | 'trend' | 'apk' | 'code'>('realHardware');
+  const [isRealHardwareMode, setIsRealHardwareMode] = useState<boolean>(true);
   const [alerts, setAlerts] = useState<PlcAlert[]>(INITIAL_ALERTS);
   const [machines, setMachines] = useState<Machine[]>(INITIAL_MACHINES);
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -57,6 +61,7 @@ function MainAppContent() {
   const [isAlarmResetOpen, setIsAlarmResetOpen] = useState(false);
   const [selectedAlarmForReset, setSelectedAlarmForReset] = useState<PlcAlert | null>(null);
   const [isPackageInstallerOpen, setIsPackageInstallerOpen] = useState(false);
+  const [isSpecificFilesModalOpen, setIsSpecificFilesModalOpen] = useState(false);
 
   // Schneider USB & RJ-45 Connection State
   const [connectionConfig, setConnectionConfig] = useState<SchneiderUsbConnectionConfig>({
@@ -304,6 +309,31 @@ function MainAppContent() {
 
           {/* Quick Actions & Header Controls */}
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Master Hardware Link Mode Switcher */}
+            <button
+              onClick={() => {
+                const next = !isRealHardwareMode;
+                setIsRealHardwareMode(next);
+                if (next) {
+                  setActiveTab('realHardware');
+                  setConnectionStatus('ONLINE');
+                  audioAlerts.playAckBlip();
+                } else {
+                  audioAlerts.playWarningBeep();
+                }
+              }}
+              className={`px-3 py-1.5 rounded-xl border text-xs font-mono font-bold transition flex items-center gap-1.5 shadow-md ${
+                isRealHardwareMode
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 border-emerald-400 shadow-emerald-500/20 ring-1 ring-emerald-400/40'
+                  : 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50'
+              }`}
+              title="Toggle between Simulation Sandbox and Real Hardware Link"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isRealHardwareMode ? 'animate-pulse' : ''}`} />
+              <span className="hidden sm:inline">{isRealHardwareMode ? 'REAL HARDWARE:' : 'MODE:'}</span>
+              <span>{isRealHardwareMode ? 'M340 ONLINE' : 'SIMULATION'}</span>
+            </button>
+
             {/* Visual Hardware Link Connectivity Status Badge */}
             <ConnectivityStatusBadge
               status={connectionStatus}
@@ -355,6 +385,15 @@ function MainAppContent() {
             </button>
 
             <button
+              onClick={() => setIsSpecificFilesModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-sky-500/20"
+              title="View and download specific files with exact project locations"
+            >
+              <FolderTree className="w-4 h-4" />
+              <span className="hidden sm:inline">Files & Locations</span>
+            </button>
+
+            <button
               onClick={() => downloadApkPackage('android-14')}
               className="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-mono text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-amber-500/20"
               title="Download standalone compiled signed Android APK"
@@ -385,6 +424,36 @@ function MainAppContent() {
 
         {/* Navigation Tabs Bar */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800/60 overflow-x-auto flex items-center gap-1">
+          <button
+            onClick={() => setActiveTab('cummins')}
+            className={`px-3.5 py-2.5 text-xs font-mono font-semibold transition flex items-center gap-2 border-b-2 shrink-0 ${
+              activeTab === 'cummins'
+                ? 'border-red-500 text-red-400 font-bold bg-red-500/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Gauge className="w-4 h-4 text-red-400" />
+            <span>Cummins DG & Main Engine</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-500/20 text-red-300 font-bold border border-red-500/30">
+              DRAWINGS
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('realHardware')}
+            className={`px-3.5 py-2.5 text-xs font-mono font-semibold transition flex items-center gap-2 border-b-2 shrink-0 ${
+              activeTab === 'realHardware'
+                ? 'border-emerald-400 text-emerald-300 font-bold bg-emerald-500/10'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-4 h-4 text-emerald-400" />
+            <span>Real Hardware & Maintenance (M340)</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+              LIVE
+            </span>
+          </button>
+
           <button
             onClick={() => setActiveTab('hmi')}
             className={`px-3.5 py-2.5 text-xs font-mono font-semibold transition flex items-center gap-2 border-b-2 shrink-0 ${
@@ -575,6 +644,26 @@ function MainAppContent() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+        {/* TAB 0: Real Physical Hardware Readout & Proper Maintenance (Modicon M340) */}
+        {activeTab === 'realHardware' && (
+          <RealHardwareMaintenanceHub
+            isRealHardwareMode={isRealHardwareMode}
+            onToggleHardwareMode={(realMode) => {
+              setIsRealHardwareMode(realMode);
+              setConnectionStatus(realMode ? 'ONLINE' : 'OFFLINE');
+            }}
+            connectionConfig={connectionConfig}
+            onUpdateConfig={(cfg) => setConnectionConfig((prev) => ({ ...prev, ...cfg }))}
+            onTriggerAlert={handleTriggerAlert}
+            onOpenChecklist={(alert) => setSelectedChecklistAlert(alert)}
+          />
+        )}
+
+        {/* TAB: Cummins Marine DG Local Control Panel (YD 305/307) & Bajrang Main Engine */}
+        {activeTab === 'cummins' && (
+          <CumminsMarineEnginePanel onOpenDownloadModal={() => setIsSpecificFilesModalOpen(true)} />
+        )}
+
         {/* TAB 1: Schneider Harmony HMI Screen (Matches reference photos!) */}
         {activeTab === 'hmi' && (
           <div className="space-y-6">
@@ -601,6 +690,7 @@ function MainAppContent() {
               onUpdateConfig={(cfg) => setConnectionConfig((prev) => ({ ...prev, ...cfg }))}
               onOpenChecklist={(alert) => setSelectedChecklistAlert(alert)}
               onViewTrend={() => setActiveTab('trend')}
+              isRealHardwareMode={isRealHardwareMode}
               onOpenResetCenter={(alert) => {
                 setSelectedAlarmForReset(alert || null);
                 setIsAlarmResetOpen(true);
@@ -764,6 +854,12 @@ function MainAppContent() {
       <PackageInstallerModal
         isOpen={isPackageInstallerOpen}
         onClose={() => setIsPackageInstallerOpen(false)}
+      />
+
+      {/* Specific Files Download & Location Directory Modal */}
+      <SpecificFilesDownloadModal
+        isOpen={isSpecificFilesModalOpen}
+        onClose={() => setIsSpecificFilesModalOpen(false)}
       />
 
       {/* Footer */}

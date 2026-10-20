@@ -23,12 +23,15 @@ import {
   ChevronUp,
   FolderArchive,
   Bluetooth,
-  Signal
+  Signal,
+  X
 } from 'lucide-react';
 import { NetworkDevice, DeviceCategory } from '../types/networkScanner';
 import { 
   INITIAL_NETWORK_DEVICES, 
   NEARBY_WIRELESS_PLCS,
+  MDNS_SCHNEIDER_DEVICES,
+  HEARTBEAT_SCHNEIDER_DEVICES,
   downloadDeviceDriverPackage, 
   downloadAllDriversMasterBundle 
 } from '../utils/driverPackageGenerator';
@@ -52,6 +55,10 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(100);
   const [isScanningNearby, setIsScanningNearby] = useState(false);
+  const [isScanningMdns, setIsScanningMdns] = useState(false);
+  const [isListeningHeartbeat, setIsListeningHeartbeat] = useState(false);
+  const [protocolFilter, setProtocolFilter] = useState<'ALL' | 'MDNS_ZEROCONF' | 'UDP_BROADCAST_HEARTBEAT' | 'WIRED_ETHERNET' | 'WIRELESS'>('ALL');
+  const [selectedPayloadDevice, setSelectedPayloadDevice] = useState<NetworkDevice | null>(null);
   const [selectedSubnet, setSelectedSubnet] = useState('192.168.1.0/24');
   const [categoryFilter, setCategoryFilter] = useState<'ALL' | DeviceCategory>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,6 +69,36 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
   const [isMasterDownloading, setIsMasterDownloading] = useState(false);
   const [connectionSuccessNotice, setConnectionSuccessNotice] = useState<string | null>(null);
   const [isSecurityCertModalOpen, setIsSecurityCertModalOpen] = useState(false);
+
+  // Trigger simulated mDNS ZeroConf Discovery (_schneider-epac._udp / _modbus._tcp)
+  const handleScanMdns = () => {
+    setIsScanningMdns(true);
+    setTimeout(() => {
+      setIsScanningMdns(false);
+      setDevices((prev) => {
+        const existingIds = new Set(prev.map(d => d.id));
+        const newItems = MDNS_SCHNEIDER_DEVICES.filter(d => !existingIds.has(d.id));
+        return [...newItems, ...prev];
+      });
+      setConnectionSuccessNotice('mDNS ZeroConf: Resolved Schneider M580 ePAC & M340 services (_schneider-epac._udp & _modbus._tcp)');
+      setTimeout(() => setConnectionSuccessNotice(null), 5000);
+    }, 1000);
+  };
+
+  // Trigger simulated UDP Broadcast Heartbeat Listener (Port 1740 UMAS & Port 2222 EtherNet/IP)
+  const handleListenHeartbeat = () => {
+    setIsListeningHeartbeat(true);
+    setTimeout(() => {
+      setIsListeningHeartbeat(false);
+      setDevices((prev) => {
+        const existingIds = new Set(prev.map(d => d.id));
+        const newItems = HEARTBEAT_SCHNEIDER_DEVICES.filter(d => !existingIds.has(d.id));
+        return [...newItems, ...prev];
+      });
+      setConnectionSuccessNotice('UDP Broadcast Heartbeat: Captured active UMAS beacon pulses on Port 1740 (M580 Hot-Standby Primary & SIL3 Safety)');
+      setTimeout(() => setConnectionSuccessNotice(null), 5000);
+    }, 1000);
+  };
 
   // Trigger simulated Bluetooth & Wi-Fi Direct Nearby PLC Discovery
   const handleScanNearbyPlcs = () => {
@@ -154,6 +191,13 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
   // Filtered devices
   const filteredDevices = devices.filter((dev) => {
     const matchesCategory = categoryFilter === 'ALL' || dev.category === categoryFilter;
+    const matchesProtocol = 
+      protocolFilter === 'ALL' ||
+      (protocolFilter === 'MDNS_ZEROCONF' && dev.discoveryProtocol === 'MDNS_ZEROCONF') ||
+      (protocolFilter === 'UDP_BROADCAST_HEARTBEAT' && dev.discoveryProtocol === 'UDP_BROADCAST_HEARTBEAT') ||
+      (protocolFilter === 'WIRELESS' && (dev.discoveryMedium === 'BLUETOOTH_LE' || dev.discoveryMedium === 'WIFI_DIRECT')) ||
+      (protocolFilter === 'WIRED_ETHERNET' && dev.discoveryMedium !== 'BLUETOOTH_LE' && dev.discoveryMedium !== 'WIFI_DIRECT');
+
     const query = searchQuery.toLowerCase();
     const matchesSearch = 
       dev.model.toLowerCase().includes(query) ||
@@ -161,7 +205,7 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
       dev.vendor.toLowerCase().includes(query) ||
       dev.mac.toLowerCase().includes(query) ||
       dev.subsystemLocation.toLowerCase().includes(query);
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesProtocol && matchesSearch;
   });
 
   return (
@@ -226,21 +270,69 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
               </select>
             </div>
 
+            {/* 1. ARP Subnet Scan */}
             <button
               onClick={handleStartScan}
-              disabled={isScanning}
-              className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-md ${
+              disabled={isScanning || isScanningMdns || isListeningHeartbeat}
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-md ${
                 isScanning
                   ? 'bg-amber-600/50 text-white cursor-wait'
                   : isNightShift
                   ? 'bg-amber-500 hover:bg-amber-400 text-zinc-950 shadow-amber-500/20'
                   : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-emerald-500/20'
               }`}
+              title="Perform subnet ping and ARP port scan across selected subnet"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isScanning ? 'animate-spin' : ''}`} />
-              <span>{isScanning ? `Scanning (${scanProgress}%)` : 'Scan Subnet'}</span>
+              <span>{isScanning ? `ARP (${scanProgress}%)` : 'Scan Subnet'}</span>
             </button>
 
+            {/* 2. mDNS ZeroConf Discovery Button */}
+            <button
+              onClick={handleScanMdns}
+              disabled={isScanning || isScanningMdns || isListeningHeartbeat}
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-md ${
+                isScanningMdns
+                  ? 'bg-sky-600/50 text-white cursor-wait'
+                  : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-sky-500/20'
+              }`}
+              title="Scan for Schneider PLCs advertising mDNS ZeroConf services (_schneider-epac._udp, _modbus._tcp, _umas._tcp)"
+            >
+              <Wifi className={`w-3.5 h-3.5 ${isScanningMdns ? 'animate-bounce' : ''}`} />
+              <span>{isScanningMdns ? 'Resolving mDNS...' : 'mDNS ZeroConf'}</span>
+            </button>
+
+            {/* 3. UDP Broadcast Heartbeat Listener Button */}
+            <button
+              onClick={handleListenHeartbeat}
+              disabled={isScanning || isScanningMdns || isListeningHeartbeat}
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition shadow-md ${
+                isListeningHeartbeat
+                  ? 'bg-emerald-600/50 text-white cursor-wait'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+              }`}
+              title="Listen for periodic Schneider UMAS (UDP:1740) & EtherNet/IP (UDP:2222) broadcast heartbeats"
+            >
+              <Activity className={`w-3.5 h-3.5 ${isListeningHeartbeat ? 'animate-spin' : ''}`} />
+              <span>{isListeningHeartbeat ? 'Listening UDP:1740...' : 'Broadcast Heartbeat'}</span>
+            </button>
+
+            {/* 4. Nearby Wireless PLCs */}
+            <button
+              onClick={handleScanNearbyPlcs}
+              disabled={isScanningNearby || isScanning}
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition border ${
+                isScanningNearby
+                  ? 'bg-purple-600/40 text-purple-200 border-purple-500 cursor-wait'
+                  : 'bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border-purple-500/40'
+              }`}
+              title="Scan nearby PLCs via Bluetooth LE 5.3 & Wi-Fi Direct"
+            >
+              <Bluetooth className={`w-3.5 h-3.5 ${isScanningNearby ? 'animate-ping' : ''}`} />
+              <span>{isScanningNearby ? 'Probing BLE...' : 'Nearby PLCs'}</span>
+            </button>
+
+            {/* 5. Continuous Auto-Polling */}
             <button
               onClick={() => setIsContinuousPolling(!isContinuousPolling)}
               className={`px-3 py-2 rounded-xl text-xs font-mono font-semibold border flex items-center gap-1.5 transition ${
@@ -254,10 +346,11 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
               <span>{isContinuousPolling ? 'Auto-Polling: ON' : 'Auto-Poll'}</span>
             </button>
 
+            {/* 6. Download All Drivers Master Bundle */}
             <button
               onClick={handleDownloadAll}
               disabled={isMasterDownloading || devices.length === 0}
-              className={`px-3.5 py-2 rounded-xl text-xs font-mono font-bold border flex items-center gap-1.5 transition ${
+              className={`px-3 py-2 rounded-xl text-xs font-mono font-bold border flex items-center gap-1.5 transition ${
                 isNightShift
                   ? 'bg-zinc-900 hover:bg-zinc-800 text-amber-300 border-amber-500/40'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
@@ -265,25 +358,39 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
               title="Download all drivers for all detected devices in a single ZIP bundle"
             >
               <FolderArchive className="w-3.5 h-3.5 text-amber-400" />
-              <span>{isMasterDownloading ? 'Packaging...' : 'Download All Drivers (.ZIP)'}</span>
+              <span>{isMasterDownloading ? 'Packaging...' : 'All Drivers (.ZIP)'}</span>
             </button>
           </div>
         </div>
 
         {/* Scan Progress Bar */}
-        {isScanning && (
+        {(isScanning || isScanningMdns || isListeningHeartbeat) && (
           <div className="mt-4 pt-3 border-t border-zinc-800 space-y-1.5">
             <div className="flex justify-between text-xs font-mono">
               <span className="text-amber-400 font-bold flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                <span>Auditing ARP broadcast, Modbus :502, UMAS :1740, S7comm :102...</span>
+                <span>
+                  {isScanningMdns
+                    ? 'Android NsdManager resolving _modbus._tcp.local & _schneider-epac._udp.local...'
+                    : isListeningHeartbeat
+                    ? 'MulticastLock active: Listening on 255.255.255.255:1740 (Schneider UMAS cyclic beacon)...'
+                    : 'Auditing ARP broadcast, Modbus :502, UMAS :1740, S7comm :102...'}
+                </span>
               </span>
-              <span className="text-zinc-400 font-bold">{scanProgress}% (254 IPs swept)</span>
+              <span className="text-zinc-400 font-bold">
+                {isScanning ? `${scanProgress}% (254 IPs swept)` : 'Active Discovery Engine'}
+              </span>
             </div>
             <div className="w-full bg-zinc-950 h-2 rounded-full overflow-hidden border border-zinc-800">
               <div 
-                className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-200"
-                style={{ width: `${scanProgress}%` }}
+                className={`h-full transition-all duration-200 ${
+                  isScanningMdns 
+                    ? 'bg-gradient-to-r from-sky-500 to-blue-400 w-full animate-pulse' 
+                    : isListeningHeartbeat
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 w-full animate-pulse'
+                    : 'bg-gradient-to-r from-amber-500 to-emerald-400'
+                }`}
+                style={isScanning ? { width: `${scanProgress}%` } : undefined}
               />
             </div>
           </div>
@@ -346,7 +453,7 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
             <button
               key={cat}
               onClick={() => setCategoryFilter(cat)}
-              className={`px-3 py-1.5 rounded-xl font-bold transition shrink-0 ${
+              className={`px-2.5 py-1.5 rounded-xl font-bold transition shrink-0 text-[11px] ${
                 categoryFilter === cat
                   ? isNightShift
                     ? 'bg-amber-500 text-zinc-950'
@@ -354,7 +461,7 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
                   : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
               }`}
             >
-              {cat === 'ALL' ? 'All Devices' : cat.replace('_', ' ')}
+              {cat === 'ALL' ? 'All Types' : cat.replace('_', ' ')}
             </button>
           ))}
         </div>
@@ -374,6 +481,68 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
             }`}
           />
         </div>
+      </div>
+
+      {/* Discovery Protocol Filter Pills */}
+      <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-mono pb-1 border-b border-zinc-800/80">
+        <span className="text-[11px] text-zinc-400 font-semibold shrink-0 mr-1">Discovery Engine:</span>
+        <button
+          onClick={() => setProtocolFilter('ALL')}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition shrink-0 ${
+            protocolFilter === 'ALL'
+              ? 'bg-zinc-200 text-zinc-950'
+              : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          All Methods ({devices.length})
+        </button>
+
+        <button
+          onClick={() => setProtocolFilter('MDNS_ZEROCONF')}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition shrink-0 flex items-center gap-1 ${
+            protocolFilter === 'MDNS_ZEROCONF'
+              ? 'bg-sky-500 text-slate-950 shadow-sm'
+              : 'bg-sky-950/40 text-sky-300 hover:bg-sky-900/40 border border-sky-800/50'
+          }`}
+        >
+          <Wifi className="w-3 h-3" />
+          <span>mDNS ZeroConf ({devices.filter(d => d.discoveryProtocol === 'MDNS_ZEROCONF').length})</span>
+        </button>
+
+        <button
+          onClick={() => setProtocolFilter('UDP_BROADCAST_HEARTBEAT')}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition shrink-0 flex items-center gap-1 ${
+            protocolFilter === 'UDP_BROADCAST_HEARTBEAT'
+              ? 'bg-emerald-500 text-slate-950 shadow-sm'
+              : 'bg-emerald-950/40 text-emerald-300 hover:bg-emerald-900/40 border border-emerald-800/50'
+          }`}
+        >
+          <Activity className="w-3 h-3" />
+          <span>UDP Heartbeat UDP:1740 ({devices.filter(d => d.discoveryProtocol === 'UDP_BROADCAST_HEARTBEAT').length})</span>
+        </button>
+
+        <button
+          onClick={() => setProtocolFilter('WIRED_ETHERNET')}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition shrink-0 ${
+            protocolFilter === 'WIRED_ETHERNET'
+              ? 'bg-amber-500 text-slate-950'
+              : 'bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          Wired Subnet ({devices.filter(d => !d.discoveryMedium || d.discoveryMedium === 'WIRED_ETHERNET').length})
+        </button>
+
+        <button
+          onClick={() => setProtocolFilter('WIRELESS')}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition shrink-0 flex items-center gap-1 ${
+            protocolFilter === 'WIRELESS'
+              ? 'bg-purple-500 text-white'
+              : 'bg-purple-950/40 text-purple-300 hover:bg-purple-900/40 border border-purple-800/50'
+          }`}
+        >
+          <Bluetooth className="w-3 h-3" />
+          <span>Nearby Wireless ({devices.filter(d => d.discoveryMedium === 'BLUETOOTH_LE' || d.discoveryMedium === 'WIFI_DIRECT').length})</span>
+        </button>
       </div>
 
       {/* Device Cards Directory */}
@@ -456,6 +625,47 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
                         <span className="text-sky-400 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
                           FW: {device.firmware}
                         </span>
+                      </div>
+
+                      {/* Discovery Protocol Badges & Payload Inspector Triggers */}
+                      <div className="flex flex-wrap items-center gap-2 mt-2 text-[10px] font-mono">
+                        {device.discoveryProtocol === 'MDNS_ZEROCONF' && (
+                          <button
+                            onClick={() => setSelectedPayloadDevice(device)}
+                            className="px-2 py-0.5 rounded font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 hover:bg-sky-500/30 flex items-center gap-1 transition cursor-pointer"
+                            title="Inspect mDNS ZeroConf Service & TXT records"
+                          >
+                            <Wifi className="w-3 h-3 text-sky-400" />
+                            <span>mDNS: {device.mdnsDetails?.serviceType || '_schneider-epac._udp'}</span>
+                            <span className="underline ml-1 text-sky-200">Inspect TXT</span>
+                          </button>
+                        )}
+
+                        {device.discoveryProtocol === 'UDP_BROADCAST_HEARTBEAT' && (
+                          <button
+                            onClick={() => setSelectedPayloadDevice(device)}
+                            className="px-2 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 flex items-center gap-1 transition cursor-pointer"
+                            title="Inspect Schneider UMAS UDP Heartbeat frame & hex dump"
+                          >
+                            <Activity className="w-3 h-3 text-emerald-400 animate-pulse" />
+                            <span>UDP Heartbeat: Port {device.heartbeatDetails?.port || 1740} ({device.heartbeatDetails?.scanCycleMs || 11.8}ms)</span>
+                            <span className="underline ml-1 text-emerald-200">Inspect Beacon</span>
+                          </button>
+                        )}
+
+                        {device.discoveryMedium === 'BLUETOOTH_LE' && (
+                          <span className="px-2 py-0.5 rounded font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1">
+                            <Bluetooth className="w-3 h-3" />
+                            <span>Bluetooth LE ({device.rssi} dBm)</span>
+                          </span>
+                        )}
+
+                        {device.discoveryMedium === 'WIFI_DIRECT' && (
+                          <span className="px-2 py-0.5 rounded font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40 flex items-center gap-1">
+                            <Signal className="w-3 h-3" />
+                            <span>Wi-Fi Direct ({device.rssi} dBm)</span>
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -570,6 +780,144 @@ export const NetworkScannerHub: React.FC<NetworkScannerHubProps> = ({
           })
         )}
       </div>
+
+      {/* Schneider mDNS & Broadcast Heartbeat Packet Dissector Modal */}
+      {selectedPayloadDevice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="relative w-full max-w-3xl rounded-2xl border border-zinc-700 bg-zinc-950 p-5 shadow-2xl space-y-4 font-mono text-xs">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className={`p-2 rounded-xl ${
+                  selectedPayloadDevice.discoveryProtocol === 'MDNS_ZEROCONF'
+                    ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                }`}>
+                  {selectedPayloadDevice.discoveryProtocol === 'MDNS_ZEROCONF' ? (
+                    <Wifi className="w-5 h-5" />
+                  ) : (
+                    <Activity className="w-5 h-5 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">
+                    {selectedPayloadDevice.discoveryProtocol === 'MDNS_ZEROCONF'
+                      ? 'SCHNEIDER mDNS ZEROCONF SERVICE DISSECTOR'
+                      : 'SCHNEIDER UDP BROADCAST HEARTBEAT DISSECTOR'}
+                  </h3>
+                  <p className="text-[11px] text-zinc-400">
+                    Target: {selectedPayloadDevice.model} ({selectedPayloadDevice.ip})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPayloadDevice(null)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* mDNS ZeroConf Details */}
+            {selectedPayloadDevice.mdnsDetails && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Service FQDN:</span>
+                    <span className="text-sky-300 font-bold break-all">{selectedPayloadDevice.mdnsDetails.serviceName}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Host Target & Domain:</span>
+                    <span className="text-white">{selectedPayloadDevice.mdnsDetails.hostTarget} ({selectedPayloadDevice.mdnsDetails.domain})</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Resolved Socket:</span>
+                    <span className="text-emerald-400 font-bold">{selectedPayloadDevice.mdnsDetails.resolvedIp}:{selectedPayloadDevice.mdnsDetails.port}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">DNS-SD Cache TTL:</span>
+                    <span className="text-amber-300">{selectedPayloadDevice.mdnsDetails.ttlSeconds} seconds</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-zinc-300 font-bold block text-[11px]">Decoded mDNS TXT Record Attributes:</span>
+                  <div className="p-3 rounded-lg bg-black/60 border border-zinc-800 space-y-1 max-h-44 overflow-y-auto">
+                    {Object.entries(selectedPayloadDevice.mdnsDetails.txtRecords).map(([key, val]) => (
+                      <div key={key} className="flex justify-between items-center text-[10px] py-0.5 border-b border-zinc-900">
+                        <span className="text-sky-400 font-bold">{key}</span>
+                        <span className="text-zinc-200">{val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* UDP Broadcast Heartbeat Details */}
+            {selectedPayloadDevice.heartbeatDetails && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Beacon Port:</span>
+                    <span className="text-emerald-400 font-bold">UDP {selectedPayloadDevice.heartbeatDetails.port}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">CPU Status:</span>
+                    <span className="text-emerald-400 font-bold">{selectedPayloadDevice.heartbeatDetails.cpuState}</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Scan Cycle:</span>
+                    <span className="text-sky-400 font-bold">{selectedPayloadDevice.heartbeatDetails.scanCycleMs} ms</span>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-zinc-900 border border-zinc-800">
+                    <span className="text-zinc-400 block text-[10px]">Sequence No:</span>
+                    <span className="text-amber-400 font-bold">#{selectedPayloadDevice.heartbeatDetails.sequenceNumber}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-black/60 border border-zinc-800 space-y-1.5">
+                  <div className="flex justify-between items-center text-[11px]">
+                    <span className="text-zinc-300 font-bold">Raw Preamble & Heartbeat Frame (Hex Dump):</span>
+                    <span className="text-emerald-400 text-[10px]">Protocol: {selectedPayloadDevice.heartbeatDetails.protocol}</span>
+                  </div>
+                  <pre className="p-2 rounded bg-zinc-950 border border-zinc-800/80 text-amber-300 text-[10px] overflow-x-auto">
+                    {selectedPayloadDevice.heartbeatDetails.rawHexPreamble}
+                  </pre>
+                  <p className="text-[10px] text-zinc-400">
+                    Decoded: Header 0x53 0x45 ("SE" - Schneider Electric) • Family 0x0580 (M580 ePAC) • MAC {selectedPayloadDevice.mac} • Redundancy Status: {selectedPayloadDevice.heartbeatDetails.rstpRingStatus}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+              <span className="text-[11px] text-zinc-400">
+                Found via {selectedPayloadDevice.discoveryProtocol?.replace('_', ' ')}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    handleConnectToHmi(selectedPayloadDevice);
+                    setSelectedPayloadDevice(null);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition flex items-center gap-1.5"
+                >
+                  <Gauge className="w-3.5 h-3.5" />
+                  <span>Connect HMI to this PLC</span>
+                </button>
+                <button
+                  onClick={() => setSelectedPayloadDevice(null)}
+                  className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-bold transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,5 +1,7 @@
 /**
- * Types and definitions for Industrial Network Auto-Scanner and Driver Package Generator.
+ * Types and definitions for Industrial Network Auto-Scanner,
+ * mDNS ZeroConf discovery, UDP Broadcast Heartbeat listener,
+ * and Driver Package Generator.
  */
 
 export type DeviceCategory = 'PLC' | 'HMI' | 'DRIVE_VFD' | 'GATEWAY' | 'IO_ISLAND' | 'ENERGY_METER';
@@ -34,6 +36,41 @@ export interface DeviceDriverSpec {
   }[];
 }
 
+export interface MdnsRecord {
+  serviceName: string;
+  serviceType: '_modbus._tcp.local' | '_schneider-epac._udp.local' | '_umas._tcp.local' | string;
+  domain: string;
+  hostTarget: string;
+  port: number;
+  txtRecords: {
+    vendor?: string;
+    model?: string;
+    firmware?: string;
+    mac?: string;
+    cpuState?: string;
+    rackSlot?: string;
+    rstpRing?: string;
+    securityLevel?: string;
+    [key: string]: string | undefined;
+  };
+  resolvedIp: string;
+  ttlSeconds: number;
+}
+
+export interface BroadcastHeartbeat {
+  sourceIp: string;
+  port: number; // 1740 (UMAS) or 2222 (EtherNet/IP) or 502
+  protocol: 'SCHNEIDER_UMAS_BEACON' | 'ETHERNET_IP_HEARTBEAT' | 'MODBUS_CYCLIC_PING';
+  family: string; // e.g. "Schneider Modicon M580 ePAC"
+  sequenceNumber: number;
+  cpuState: 'RUN' | 'STOP' | 'HALT' | 'ERR';
+  scanCycleMs: number;
+  rawHexPreamble: string; // e.g. "53 45 48 42 05 80"
+  timestamp: number;
+  rstpRingStatus: 'RING_CLOSED_HEALTHY' | 'RING_OPEN_DEGRADED' | 'STANDALONE';
+  batteryStatus: 'OK' | 'LOW';
+}
+
 export interface NetworkDevice {
   id: string;
   ip: string;
@@ -51,9 +88,12 @@ export interface NetworkDevice {
   lastSeen: number;
   driver: DeviceDriverSpec;
   discoveryMedium?: 'WIRED_ETHERNET' | 'BLUETOOTH_LE' | 'WIFI_DIRECT';
+  discoveryProtocol?: 'ARP_PING' | 'MDNS_ZEROCONF' | 'UDP_BROADCAST_HEARTBEAT' | 'BLUETOOTH_LE' | 'WIFI_DIRECT';
   rssi?: number; // e.g. -52 dBm for BLE/Wi-Fi signal strength
   wirelessBeaconName?: string;
   pairingStatus?: 'PAIRED' | 'AVAILABLE' | 'CONNECTING';
+  mdnsDetails?: MdnsRecord;
+  heartbeatDetails?: BroadcastHeartbeat;
 }
 
 export interface SubnetScanConfig {

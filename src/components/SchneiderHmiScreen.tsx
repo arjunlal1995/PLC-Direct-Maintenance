@@ -39,6 +39,7 @@ interface SchneiderHmiScreenProps {
   onOpenChecklist: (alert: PlcAlert) => void;
   onViewTrend?: () => void;
   onOpenResetCenter?: (alert?: PlcAlert) => void;
+  isRealHardwareMode?: boolean;
 }
 
 export const SchneiderHmiScreen: React.FC<SchneiderHmiScreenProps> = ({
@@ -53,6 +54,7 @@ export const SchneiderHmiScreen: React.FC<SchneiderHmiScreenProps> = ({
   onOpenChecklist,
   onViewTrend,
   onOpenResetCenter,
+  isRealHardwareMode = false,
 }) => {
   const { isNightShift, palette, highContrast } = useNightShift();
 
@@ -385,10 +387,12 @@ export const SchneiderHmiScreen: React.FC<SchneiderHmiScreenProps> = ({
           }`}>
             Station FWD
           </span>
-          <span className={`px-2 py-0.5 rounded border hidden md:inline ${
-            isNightShift ? 'bg-zinc-950 text-amber-300 border-zinc-800' : 'bg-slate-800 text-amber-300 border-slate-700'
+          <span className={`px-2 py-0.5 rounded border hidden md:inline font-bold ${
+            isRealHardwareMode
+              ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500 ring-1 ring-emerald-500/40'
+              : isNightShift ? 'bg-zinc-950 text-amber-300 border-zinc-800' : 'bg-slate-800 text-amber-300 border-slate-700'
           }`}>
-            Modbus Remote
+            {isRealHardwareMode ? '● M340 HARDWARE LINK' : 'Modbus Simulation'}
           </span>
           <span className={`px-2.5 py-0.5 rounded font-bold border ${
             isEmStopActive 

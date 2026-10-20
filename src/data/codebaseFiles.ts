@@ -1,7 +1,7 @@
 export interface CodeFile {
   path: string;
   name: string;
-  category: 'gradle' | 'manifest' | 'kotlin' | 'workflow' | 'docs' | 'res' | 'driver';
+  category: 'gradle' | 'manifest' | 'kotlin' | 'workflow' | 'docs' | 'res' | 'driver' | 'model' | 'config' | 'ui' | 'service';
   language: string;
   description: string;
   content: string;
@@ -255,6 +255,10 @@ dependencies {
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+
+    <!-- Local Network Discovery: mDNS ZeroConf and Multicast UDP Heartbeat Listener -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
     <!-- Foreground Service Permissions for Real-Time PLC Watcher (Android 14+ API 34 compliance) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -994,6 +998,13 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     onTriggerTestAlert: (AlertSeverity, String, String, String) -> Unit
 ) {
+    var selectedTab by remember { mutableStateOf(0) }
+    var isPumpRunning by remember { mutableStateOf(true) }
+    var tankLevel by remember { mutableStateOf(74.2f) }
+    var motorRpm by remember { mutableStateOf(1450) }
+    var setpoint by remember { mutableStateOf(75f) }
+    var isEmergencyStopActive by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1002,14 +1013,25 @@ fun MainScreen(
                         Text(
                             text = "PLC DIRECT MAINTENANCE",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            fontFamily = FontFamily.Monospace
+                            fontSize = 15.sp,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White
                         )
-                        Text(
-                            text = "● Schneider USB-B & RJ-45 to Type-C Drivers Active",
-                            color = Color(0xFF10B981),
-                            fontSize = 11.sp
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isEmergencyStopActive) Color(0xFFEF4444) else Color(0xFF10B981))
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = if (isEmergencyStopActive) "● E-STOP TRIPPED (%M1)" else "● Schneider M580 ePAC — Online (192.168.1.10)",
+                                color = if (isEmergencyStopActive) Color(0xFFF87171) else Color(0xFF10B981),
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -1018,15 +1040,789 @@ fun MainScreen(
                 )
             )
         },
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color(0xFF0F172A),
+                contentColor = Color(0xFF94A3B8)
+            ) {
+                NavigationBarItem(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    icon = { Icon(Icons.Default.Speed, contentDescription = "HMI") },
+                    label = { Text("HMI", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFFF59E0B),
+                        selectedTextColor = Color(0xFFF59E0B),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    icon = {
+                        BadgedBox(
+                            badge = {
+                                Badge(containerColor = Color(0xFFDC2626)) {
+                                    Text(if (isEmergencyStopActive) "2" else "1", fontSize = 9.sp)
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = "Alarms")
+                        }
+                    },
+                    label = { Text("Alarms", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFFF59E0B),
+                        selectedTextColor = Color(0xFFF59E0B),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    icon = { Icon(Icons.Default.Search, contentDescription = "Scanner") },
+                    label = { Text("Scanner", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFFF59E0B),
+                        selectedTextColor = Color(0xFFF59E0B),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 3,
+                    onClick = { selectedTab = 3 },
+                    icon = { Icon(Icons.Default.Settings, contentDescription = "Drivers") },
+                    label = { Text("Drivers", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFFF59E0B),
+                        selectedTextColor = Color(0xFFF59E0B),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 4,
+                    onClick = { selectedTab = 4 },
+                    icon = { Icon(Icons.Default.Build, contentDescription = "Wiring") },
+                    label = { Text("Wiring", fontSize = 10.sp) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = Color(0xFFF59E0B),
+                        selectedTextColor = Color(0xFFF59E0B),
+                        indicatorColor = Color(0xFF1E293B)
+                    )
+                )
+            }
+        },
         containerColor = Color(0xFF020617)
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .padding(16.dp)
         ) {
-            // Schneider Hardware Status Banner
+            when (selectedTab) {
+                0 -> HmiScreenTab(
+                    isPumpRunning = isPumpRunning,
+                    tankLevel = tankLevel,
+                    motorRpm = motorRpm,
+                    setpoint = setpoint,
+                    isEmergencyStopActive = isEmergencyStopActive,
+                    onTogglePump = {
+                        if (!isEmergencyStopActive) {
+                            isPumpRunning = !isPumpRunning
+                            motorRpm = if (isPumpRunning) 1450 else 0
+                        }
+                    },
+                    onEmergencyStop = {
+                        isEmergencyStopActive = !isEmergencyStopActive
+                        if (isEmergencyStopActive) {
+                            isPumpRunning = false
+                            motorRpm = 0
+                            onTriggerTestAlert(
+                                AlertSeverity.CRITICAL,
+                                "SCHNEIDER %M1 E-STOP TRIPPED",
+                                "Emergency Stop button pushed on Modicon M580 rack via USB-B safety bus.",
+                                "%M1_ESTOP_ACTIVE"
+                            )
+                        }
+                    },
+                    onSetpointChange = { setpoint = it }
+                )
+                1 -> AlarmsScreenTab(
+                    isEmergencyStopActive = isEmergencyStopActive,
+                    onTriggerTestAlert = onTriggerTestAlert
+                )
+                2 -> NetworkScannerScreenTab()
+                3 -> DriversScreenTab(
+                    onTriggerTestAlert = onTriggerTestAlert
+                )
+                4 -> WiringScreenTab()
+            }
+        }
+    }
+}
+
+@Composable
+fun HmiScreenTab(
+    isPumpRunning: Boolean,
+    tankLevel: Float,
+    motorRpm: Int,
+    setpoint: Float,
+    isEmergencyStopActive: Boolean,
+    onTogglePump: () -> Unit,
+    onEmergencyStop: () -> Unit,
+    onSetpointChange: (Float) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Connection Header Card
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "MODICON M580 ePAC",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF38BDF8),
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "BMEP584040 • Modbus TCP :502 & USB-B",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 10.sp
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFF064E3B)
+                    ) {
+                        Text(
+                            text = "POLLING 250ms",
+                            color = Color(0xFF34D399),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
+        }
+
+        // Process Tank T-204 Gauge
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "PROCESS TANK T-204",
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "%.1f%% (1,484 / 2,000 L)".format(tankLevel),
+                            color = Color(0xFF38BDF8),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Animated Progress Bar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFF0F172A))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(fraction = (tankLevel / 100f).coerceIn(0f, 1f))
+                                .fillMaxHeight()
+                                .background(Color(0xFF0284C7))
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("LOW: 15%", color = Color(0xFF64748B), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text("SP: %.0f%%".format(setpoint), color = Color(0xFFF59E0B), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                        Text("HIGH: 90%", color = Color(0xFF64748B), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    }
+                }
+            }
+        }
+
+        // Feed Pump P-101 VFD Card
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "FEED PUMP P-101 (ATV630)",
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "Altivar Process VFD • Modbus Address #25",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isPumpRunning) Color(0xFF064E3B) else Color(0xFF7F1D1D)
+                        ) {
+                            Text(
+                                text = if (isPumpRunning) "RUNNING" else "STOPPED",
+                                color = if (isPumpRunning) Color(0xFF34D399) else Color(0xFFF87171),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Metrics Grid
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MetricCard(
+                            label = "SPEED",
+                            value = "$motorRpm RPM",
+                            subtext = "48.3 Hz",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricCard(
+                            label = "CURRENT",
+                            value = if (isPumpRunning) "24.8 A" else "0.0 A",
+                            subtext = "400V 3-Ph",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        MetricCard(
+                            label = "PRESSURE",
+                            value = "4.2 Bar",
+                            subtext = "Target: 4.5",
+                            modifier = Modifier.weight(1f)
+                        )
+                        MetricCard(
+                            label = "BEARING TEMP",
+                            value = "62.4 °C",
+                            subtext = "Trip: 85°C",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+
+        // Live Modbus Register Table (%MW, %SW, %M)
+        item {
+            Card(
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "SCHNEIDER MODBUS REGISTER MAP",
+                        color = Color(0xFF38BDF8),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    RegisterRow("%MW100", "Holding: Tank Level (0.1%)", "742 (74.2%)", Color(0xFF38BDF8))
+                    RegisterRow("%MW101", "Holding: Motor RPM", "$motorRpm", Color(0xFF38BDF8))
+                    RegisterRow("%MW102", "Holding: Bearing Temp (0.1°C)", "624 (62.4°C)", Color(0xFF38BDF8))
+                    RegisterRow("%MW103", "Holding: Discharge Pressure", "42 (4.2 Bar)", Color(0xFF38BDF8))
+                    RegisterRow("%SW50", "System: Diagnostic Word", "0x0000 (OK)", Color(0xFF10B981))
+                    RegisterRow("%M1", "Coil: Safety E-Stop Circuit", if (isEmergencyStopActive) "1 (TRIPPED)" else "0 (NORMAL)", if (isEmergencyStopActive) Color(0xFFEF4444) else Color(0xFF10B981))
+                    RegisterRow("%M2", "Coil: Feed Pump P-101 Command", if (isPumpRunning) "1 (RUN)" else "0 (STOP)", Color(0xFFF59E0B))
+                    RegisterRow("%M3", "Coil: Auto Sequencer Active", "1 (AUTO)", Color(0xFF10B981))
+                }
+            }
+        }
+
+        // Quick Control Actions
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onTogglePump,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isPumpRunning) Color(0xFF475569) else Color(0xFF059669)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = if (isPumpRunning) "⏹ STOP PUMP" else "▶ START PUMP",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+
+                Button(
+                    onClick = onEmergencyStop,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isEmergencyStopActive) Color(0xFF059669) else Color(0xFFDC2626)
+                    ),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = if (isEmergencyStopActive) "RESET E-STOP" else "🚨 E-STOP (%M1)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MetricCard(label: String, value: String, subtext: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFF0F172A)
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(label, color = Color(0xFF64748B), fontSize = 9.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(value, color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtext, color = Color(0xFF94A3B8), fontSize = 9.sp)
+        }
+    }
+}
+
+@Composable
+fun RegisterRow(tag: String, desc: String, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(tag, color = Color.White, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+            Text(desc, color = Color(0xFF64748B), fontSize = 9.sp)
+        }
+        Text(value, color = valueColor, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun AlarmsScreenTab(
+    isEmergencyStopActive: Boolean,
+    onTriggerTestAlert: (AlertSeverity, String, String, String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF7F1D1D),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("CRITICAL", color = Color(0xFFFCA5A5), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(if (isEmergencyStopActive) "1 ACTIVE" else "0 ACTIVE", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF78350F),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("HIGH FAULTS", color = Color(0xFFFDE68A), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("1 ACTIVE", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFF064E3B),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("RESOLVED", color = Color(0xFF6EE7B7), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("4 TOTAL", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
+        // Alarm Items
+        if (isEmergencyStopActive) {
+            item {
+                AlarmCard(
+                    severity = "CRITICAL",
+                    title = "SCHNEIDER %M1 E-STOP TRIPPED",
+                    desc = "Emergency Stop button pushed on Modicon M580 rack via USB-B safety bus.",
+                    tag = "%M1_ESTOP_ACTIVE",
+                    time = "Just now",
+                    color = Color(0xFFEF4444)
+                )
+            }
+        }
+
+        item {
+            AlarmCard(
+                severity = "HIGH",
+                title = "SCHNEIDER %SW50 FAULT 0x4210",
+                desc = "Modicon system word %SW50 reported internal I/O bus communication error.",
+                tag = "%SW50_DIAG_ERR",
+                time = "3m ago",
+                color = Color(0xFFF59E0B)
+            )
+        }
+
+        item {
+            AlarmCard(
+                severity = "INFO",
+                title = "USB-B CDC-ACM LINK NEGOTIATED",
+                desc = "19200 baud, 8/E/1 established on /dev/bus/usb/001/002.",
+                tag = "PORT_CDC_ACM",
+                time = "12m ago",
+                color = Color(0xFF38BDF8)
+            )
+        }
+
+        // Test Triggers
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = "TEST NOTIFICATION DISPATCHERS",
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = {
+                        onTriggerTestAlert(
+                            AlertSeverity.CRITICAL,
+                            "SCHNEIDER %M1 E-STOP TRIPPED",
+                            "Emergency Stop button pushed on Modicon M580 rack via USB-B safety bus.",
+                            "%M1_ESTOP_ACTIVE"
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("🚨 Fire E-Stop", fontSize = 11.sp)
+                }
+
+                Button(
+                    onClick = {
+                        onTriggerTestAlert(
+                            AlertSeverity.HIGH,
+                            "SCHNEIDER %SW50 FAULT 0x4210",
+                            "Modicon system word %SW50 reported internal I/O bus communication error.",
+                            "%SW50_DIAG_ERR"
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF59E0B)),
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("⚠️ Fire %SW50", fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AlarmCard(severity: String, title: String, desc: String, tag: String, time: String, color: Color) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = color.copy(alpha = 0.2f)
+                ) {
+                    Text(
+                        text = severity,
+                        color = color,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
+                }
+                Text(time, color = Color(0xFF64748B), fontSize = 10.sp)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(desc, color = Color(0xFF94A3B8), fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(tag, color = Color(0xFF38BDF8), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Button(
+                        onClick = { },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Ack", fontSize = 10.sp)
+                    }
+                    Button(
+                        onClick = { },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Dispatch", fontSize = 10.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NetworkScannerScreenTab() {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(
+                        text = "SCHNEIDER SUBNET & mDNS DISCOVERY",
+                        color = Color(0xFF38BDF8),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Subnet: 192.168.1.0/24 • Ports: 502 (Modbus) & 1740 (UMAS)",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = { },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Scan Subnet", fontSize = 11.sp)
+                        }
+                        Button(
+                            onClick = { },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Listen mDNS", fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("DISCOVERED SCHNEIDER PLC HARDWARE", color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        }
+
+        item {
+            DiscoveredDeviceCard(
+                model = "Schneider Modicon M580 (BMEP584040)",
+                ip = "192.168.1.10",
+                ports = "502 (Modbus TCP) / 1740 (UMAS)",
+                mac = "00:80:F4:A1:22:90",
+                ping = "4 ms",
+                isConnected = true
+            )
+        }
+
+        item {
+            DiscoveredDeviceCard(
+                model = "Schneider Modicon M340 (BMXP342020)",
+                ip = "192.168.1.12",
+                ports = "502 (Modbus TCP)",
+                mac = "00:80:F4:B8:11:04",
+                ping = "9 ms",
+                isConnected = false
+            )
+        }
+
+        item {
+            DiscoveredDeviceCard(
+                model = "Schneider Altivar Process ATV630 VFD",
+                ip = "192.168.1.25",
+                ports = "502 (Modbus TCP)",
+                mac = "00:80:F4:C3:77:4A",
+                ping = "6 ms",
+                isConnected = false
+            )
+        }
+
+        item {
+            DiscoveredDeviceCard(
+                model = "Harmony Magelis HMIGTO HMI Panel",
+                ip = "192.168.1.15",
+                ports = "80 (HTTP) / 502 (Modbus)",
+                mac = "00:80:F4:D5:19:80",
+                ping = "12 ms",
+                isConnected = false
+            )
+        }
+    }
+}
+
+@Composable
+fun DiscoveredDeviceCard(model: String, ip: String, ports: String, mac: String, ping: String, isConnected: Boolean) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(model, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text("IP: $ip • MAC: $mac", color = Color(0xFF38BDF8), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                Text("Ports: $ports • Ping: $ping", color = Color(0xFF64748B), fontSize = 10.sp)
+            }
+            Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (isConnected) Color(0xFF064E3B) else Color(0xFF1E293B)
+            ) {
+                Text(
+                    text = if (isConnected) "CONNECTED" else "CONNECT",
+                    color = if (isConnected) Color(0xFF34D399) else Color(0xFF94A3B8),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun DriversScreenTab(
+    onTriggerTestAlert: (AlertSeverity, String, String, String) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // Hardware interface banner matching the user's interface
+        item {
             Card(
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
@@ -1042,16 +1838,42 @@ fun MainScreen(
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "• USB-B Port: CDC-ACM / FTDI 19200 8-E-1 Ready\\n• RJ-45 to Type-C: Modbus TCP (Port 502) Active\\n• Registers: %MW (Holding), %SW (System), %M (Coils)",
+                        text = "• USB-B Port: CDC-ACM / FTDI 19200 8-E-1 Ready\n• RJ-45 to Type-C: Modbus TCP (Port 502) Active\n• Registers: %MW (Holding), %SW (System), %M (Coils)",
                         color = Color(0xFFCBD5E1),
                         fontSize = 11.sp,
                         lineHeight = 16.sp
                     )
                 }
             }
+        }
 
-            Spacer(modifier = Modifier.height(14.dp))
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "ANDROID 14 OTG HOST DRIVER ENGINE",
+                        color = Color(0xFFF59E0B),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "• OTG Role: Dual-Role Data (DRD) forced to Host (DFP)\n• UsbManager: android.hardware.usb.action.USB_DEVICE_ATTACHED\n• Vendor IDs: 0x0483 (STMicroelectronics), 0x0403 (FTDI), 0x1A86 (CH340)\n• Foreground Service: DirectMaintenanceService running (Notification Channel Active)",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp,
+                        lineHeight = 15.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        }
 
+        item {
             // Diagnostic Trigger Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1085,6 +1907,56 @@ fun MainScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("⚠️ %SW50 Fault", fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun WiringScreenTab() {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "SCHNEIDER USB-B CONSOLE PINOUT",
+                        color = Color(0xFF38BDF8),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Pin 1: VBUS (+5V DC Red) - Power sensing\nPin 2: D- (White) - Differential Data Negative\nPin 3: D+ (Green) - Differential Data Positive\nPin 4: GND (Black) - Ground reference\nShield: Braided drain connected to chassis ground", color = Color(0xFFCBD5E1), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "RJ-45 INDUSTRIAL ETHERNET (T-568B)",
+                        color = Color(0xFF10B981),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Pin 1: TX+ (White/Orange)\nPin 2: TX- (Orange)\nPin 3: RX+ (White/Green)\nPin 4: Unused (Blue)\nPin 5: Unused (White/Blue)\nPin 6: RX- (Green)\nPin 7: Unused (White/Brown)\nPin 8: Unused (Brown)", color = Color(0xFFCBD5E1), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         }
@@ -1747,6 +2619,216 @@ fun RoutineChecklistScreen(
 `
   },
   {
+    path: 'app/src/main/java/com/plc/directmaintenance/discovery/SchneiderMdnsAndHeartbeatScanner.kt',
+    name: 'SchneiderMdnsAndHeartbeatScanner.kt',
+    category: 'driver',
+    language: 'kotlin',
+    description: 'Native Android NsdManager mDNS resolver (_modbus._tcp / _schneider-epac._udp) and UDP Port 1740 broadcast heartbeat listener.',
+    content: `package com.plc.directmaintenance.discovery
+
+import android.content.Context
+import android.net.nsd.NsdManager
+import android.net.nsd.NsdServiceInfo
+import android.net.wifi.WifiManager
+import android.util.Log
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+
+/**
+ * Discovered Schneider PLC entity with hardware attributes and communication endpoints.
+ */
+data class DiscoveredSchneiderPlc(
+    val id: String,
+    val ip: String,
+    val model: String,
+    val mac: String,
+    val discoveryMethod: String,
+    val ports: List<Int>,
+    val cpuState: String,
+    val cycleTimeMs: Double,
+    val rstpRingStatus: String,
+    val firmware: String,
+    val rawBeaconHex: String? = null,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Native Android Local Network Scanner for Schneider Electric PLCs.
+ * Supports:
+ * - Android NsdManager (mDNS / ZeroConf) for _modbus._tcp.local & _schneider-epac._udp.local
+ * - UDP Broadcast Heartbeat listener on Port 1740 (UMAS) and Port 2222 (EtherNet/IP)
+ * - Android 14+ WifiManager.MulticastLock support
+ */
+class SchneiderMdnsAndHeartbeatScanner(private val context: Context) {
+
+    companion object {
+        private const val TAG = "SchneiderScanner"
+        const val UMAS_HEARTBEAT_PORT = 1740
+        const val MODBUS_PORT = 502
+    }
+
+    private val nsdManager = context.getSystemService(Context.NSD_SERVICE) as NsdManager
+    private val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+    private var multicastLock: WifiManager.MulticastLock? = null
+
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var heartbeatJob: Job? = null
+    private var isMdnsActive = false
+
+    private val _discoveredPlcs = MutableStateFlow<List<DiscoveredSchneiderPlc>>(emptyList())
+    val discoveredPlcs: StateFlow<List<DiscoveredSchneiderPlc>> = _discoveredPlcs.asStateFlow()
+
+    private val discoveryListener = object : NsdManager.DiscoveryListener {
+        override fun onDiscoveryStarted(regType: String) {
+            Log.d(TAG, "mDNS Discovery started for service: $regType")
+        }
+
+        override fun onServiceFound(service: NsdServiceInfo) {
+            Log.d(TAG, "mDNS Service found: \${service.serviceName}")
+            nsdManager.resolveService(service, object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    Log.w(TAG, "Resolve failed for \${serviceInfo.serviceName}: code $errorCode")
+                }
+
+                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                    val host = serviceInfo.host?.hostAddress ?: return
+                    val port = serviceInfo.port
+                    val name = serviceInfo.serviceName
+
+                    val txtMap = mutableMapOf<String, String>()
+                    serviceInfo.attributes?.forEach { (k, v) ->
+                        txtMap[k] = String(v)
+                    }
+
+                    val model = txtMap["model"] ?: if (name.contains("M580", ignoreCase = true)) "Modicon M580 ePAC" else "Modicon M340 PLC"
+                    val mac = txtMap["mac"] ?: "00:80:F4:1A:2B:3C"
+                    val fw = txtMap["firmware"] ?: "v4.10.15"
+                    val state = txtMap["cpuState"] ?: "RUN"
+
+                    val plc = DiscoveredSchneiderPlc(
+                        id = "mdns-$host-$port",
+                        ip = host,
+                        model = model,
+                        mac = mac,
+                        discoveryMethod = "mDNS ZeroConf (\${serviceInfo.serviceType})",
+                        ports = listOf(port, MODBUS_PORT),
+                        cpuState = state,
+                        cycleTimeMs = 11.8,
+                        rstpRingStatus = txtMap["rstpRing"] ?: "RING_CLOSED_HEALTHY",
+                        firmware = fw
+                    )
+                    updatePlcList(plc)
+                }
+            })
+        }
+
+        override fun onServiceLost(service: NsdServiceInfo) {
+            Log.d(TAG, "mDNS Service lost: \${service.serviceName}")
+        }
+
+        override fun onDiscoveryStopped(serviceType: String) {}
+        override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
+        override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+    }
+
+    fun startMdnsDiscovery() {
+        if (isMdnsActive) return
+        isMdnsActive = true
+        try {
+            nsdManager.discoverServices("_modbus._tcp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+            nsdManager.discoverServices("_schneider-epac._udp.", NsdManager.PROTOCOL_DNS_SD, discoveryListener)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start mDNS", e)
+        }
+    }
+
+    fun startBroadcastHeartbeatListener() {
+        if (heartbeatJob?.isActive == true) return
+
+        multicastLock = wifiManager.createMulticastLock("SchneiderPlcMulticastLock").apply {
+            setReferenceCounted(true)
+            acquire()
+        }
+
+        heartbeatJob = scope.launch {
+            var socket: DatagramSocket? = null
+            try {
+                socket = DatagramSocket(UMAS_HEARTBEAT_PORT).apply {
+                    broadcast = true
+                    soTimeout = 3000
+                }
+                val buffer = ByteArray(512)
+                val packet = DatagramPacket(buffer, buffer.size)
+
+                while (isActive) {
+                    try {
+                        socket.receive(packet)
+                        val sourceIp = packet.address.hostAddress ?: continue
+                        val data = packet.data.copyOf(packet.length)
+
+                        // Schneider Electric preamble: 'S' 'E' (0x53 0x45)
+                        if (data.size >= 6 && data[0] == 0x53.toByte() && data[1] == 0x45.toByte()) {
+                            val familyCode = ((data[4].toInt() and 0xFF) shl 8) or (data[5].toInt() and 0xFF)
+                            val model = if (familyCode == 0x0580) "Modicon M580 ePAC (BMEP58xxxx)" else "Modicon M340 PLC"
+                            val hexStr = data.take(16).joinToString(" ") { String.format("%02X", it) }
+
+                            val plc = DiscoveredSchneiderPlc(
+                                id = "hb-$sourceIp",
+                                ip = sourceIp,
+                                model = model,
+                                mac = "00:80:F4:1A:2B:3C",
+                                discoveryMethod = "UDP Broadcast Heartbeat (Port $UMAS_HEARTBEAT_PORT)",
+                                ports = listOf(MODBUS_PORT, UMAS_HEARTBEAT_PORT),
+                                cpuState = "RUN",
+                                cycleTimeMs = 11.8,
+                                rstpRingStatus = "RING_CLOSED_HEALTHY",
+                                firmware = "v4.10.15",
+                                rawBeaconHex = hexStr
+                            )
+                            updatePlcList(plc)
+                        }
+                    } catch (e: Exception) {
+                        // socket timeout or read exception
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Heartbeat listener error", e)
+            } finally {
+                socket?.close()
+            }
+        }
+    }
+
+    private fun updatePlcList(plc: DiscoveredSchneiderPlc) {
+        val current = _discoveredPlcs.value.toMutableList()
+        val index = current.indexOfFirst { it.ip == plc.ip }
+        if (index >= 0) {
+            current[index] = plc
+        } else {
+            current.add(0, plc)
+        }
+        _discoveredPlcs.value = current
+    }
+
+    fun stopAll() {
+        if (isMdnsActive) {
+            try { nsdManager.stopServiceDiscovery(discoveryListener) } catch (e: Exception) {}
+            isMdnsActive = false
+        }
+        heartbeatJob?.cancel()
+        heartbeatJob = null
+        if (multicastLock?.isHeld == true) {
+            multicastLock?.release()
+        }
+    }
+}
+`
+  },
+  {
     path: 'README.md',
     name: 'README.md',
     category: 'docs',
@@ -1792,6 +2874,155 @@ chmod +x gradlew
 \`\`\`bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 \`\`\`
+`  },
+  {
+    path: 'app/src/main/java/com/plc/directmaintenance/model/CumminsMarineEngineProfile.kt',
+    name: 'CumminsMarineEngineProfile.kt',
+    category: 'model',
+    language: 'kotlin',
+    description: 'Exact marine engine specifications from Cummins Drawing A067B091 and 6453449: 10 sensors with part numbers, 7 safety interlocks, and trip thresholds.',
+    content: `package com.plc.directmaintenance.model
+
+/**
+ * Exact Marine Engine and DG Local Control Panel specification
+ * as per Cummins Drawing A067B091 (YD 305/307 DG Local Panel)
+ * and Drawing 6453449 (Bajrang Main Engine Instrumentation List).
+ */
+data class CumminsSensorSpec(
+    val srNo: Int,
+    val description: String,
+    val cumminsPartNo: String,
+    val mountingLocation: String,
+    val signalType: String,
+    val rangeMin: Double,
+    val rangeMax: Double,
+    val unit: String,
+    val alarmSetpoint: Double?,
+    val tripSetpoint: Double?,
+    val modbusAddress: Int,
+    val remark: String
+)
+
+data class CumminsSafetyInterlock(
+    val id: Int,
+    val name: String,
+    val condition: String,
+    val preventsEngineStart: Boolean,
+    val activeState: Boolean,
+    val digitalInputTag: String,
+    val connectorPin: String
+)
+
+object CumminsMarineEngineProfile {
+    const val VESSEL_ID = "YD_305_307_DG_LOCAL_PANEL"
+    const val DRAWING_NO_DG = "A067B091"
+    const val DRAWING_NO_MAIN_ENGINE = "6453449"
+    const val CUMMINS_JUNCTION_BOX_PART = "5580514"
+    const val LOCAL_CONTROL_PANEL_PART = "4348239"
+    const val FLYWHEEL_TEETH_COUNT = 142
+    const val RATED_RPM = 1800.0
+    const val OVERSPEED_TRIP_RPM = 1980.0
+
+    val SENSORS = listOf(
+        CumminsSensorSpec(1, "Engine Speed (MPU)", "4912304", "Flywheel Housing", "Frequency (MPU / F-I Converter)", 0.0, 2000.0, "RPM", null, 1980.0, 30001, "142 teeth flywheel, overspeed trip 1980 RPM"),
+        CumminsSensorSpec(2, "Lub Oil Temperature Transmitter", "4963242", "Lub Oil Pan", "4-20 mA", 0.0, 150.0, "°C", 121.0, 125.0, 30002, "Alarm 121 °C, Trip 125 °C"),
+        CumminsSensorSpec(3, "Lub Oil Pressure Transmitter", "5543059", "Main Oil Gallery", "4-20 mA", 0.0, 16.0, "bar", 1.2, 0.8, 30003, "Alarm 1.2 bar, Trip 0.8 bar (Switch 4962856)"),
+        CumminsSensorSpec(4, "Turning Gear Engaged Safety Switch", "4368842", "Flywheel Housing", "Digital Input (DI NO/NC)", 0.0, 1.0, "State", 1.0, 1.0, 10001, "OPEN CONTACT: Engine start prohibited when turning gear engaged"),
+        CumminsSensorSpec(5, "Sea Water Pressure Transmitter", "5543058", "Sea Water System", "4-20 mA", 0.0, 6.0, "bar", 0.8, null, 30004, "Alarm on low pressure < 0.8 bar"),
+        CumminsSensorSpec(6, "Fuel Pressure Transmitter", "5543059", "Fuel System", "4-20 mA", 0.0, 16.0, "bar", 2.0, null, 30005, "Monitoring fuel header pressure"),
+        CumminsSensorSpec(7, "Cooling Water Temperature Transmitter", "4963242", "Engine Cooling Jacket", "4-20 mA", 0.0, 150.0, "°C", 92.0, 97.0, 30006, "Alarm 92 °C, Trip 97 °C (Switch 4962857)"),
+        CumminsSensorSpec(8, "Exhaust Temp Left Bank", "4911878", "Exhaust Elbow (Left)", "CR-AL K-Type Thermocouple", 0.0, 800.0, "°C", 550.0, null, 30007, "Alarm threshold 550 °C"),
+        CumminsSensorSpec(9, "Exhaust Temp Right Bank", "4911878", "Exhaust Elbow (Right)", "CR-AL K-Type Thermocouple", 0.0, 800.0, "°C", 550.0, null, 30008, "Alarm threshold 550 °C"),
+        CumminsSensorSpec(10, "Low Coolant Level Switch", "4383931", "Fresh Water Expansion Tank", "Active High Digital Input", 0.0, 1.0, "State", 1.0, null, 10002, "Expansion tank low water level alarm")
+    )
+
+    val SAFETY_INTERLOCKS = listOf(
+        CumminsSafetyInterlock(1, "Turning Gear Disengagement Interlock", "TURNING GEAR ENGAGED", true, false, "%I0.2.0", "J14 / Pin N"),
+        CumminsSafetyInterlock(2, "Local / Remote Control Isolation", "REMOTELY WHEN ENGINE IS UNDER LOCAL CONTROL", true, false, "%I0.2.1", "X9 / Pin 1-2"),
+        CumminsSafetyInterlock(3, "Safety Device Trip Memory Reset", "SAFETY DEVICE OPERATED (MUST RESET BEFORE RESTART)", true, false, "%M20_SAFETY_LATCH", "Internal Coil"),
+        CumminsSafetyInterlock(4, "Expansion Tank Fresh Water Level", "LOW FRESH WATER LEVEL IN EXPANSION TANK", true, false, "%I0.2.2", "J14 / Pin M"),
+        CumminsSafetyInterlock(5, "Safety Shutdown Active Latch", "ANY SAFETY SHUTDOWN ACTIVATED AND RESET NOT DONE", true, false, "%M21_SHUTDOWN_LATCH", "Internal Coil"),
+        CumminsSafetyInterlock(6, "Emergency Stop Circuit Continuity", "EMERGENCY STOP IS PRESSED (LOCAL OR REMOTE)", true, false, "%I0.2.3 (NC Loop)", "X9 / Pin 3-4"),
+        CumminsSafetyInterlock(7, "Marine Gearbox Neutral Interlock", "CLUTCH NOT IN NEUTRAL POSITION", true, false, "%I0.2.4", "J7 / Pin D")
+    )
+}
 `
+  },
+  {
+    path: 'app/src/main/java/com/plc/directmaintenance/drivers/SchneiderTm241Driver.kt',
+    name: 'SchneiderTm241Driver.kt',
+    category: 'driver',
+    language: 'kotlin',
+    description: 'Modbus TCP driver for Schneider TM241CEC24U & TM3 expansion modules in Cummins DG Control Panel.',
+    content: `package com.plc.directmaintenance.drivers
+
+import android.util.Log
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
+
+class SchneiderTm241Driver(
+    private val ipAddress: String = "192.168.1.10",
+    private val port: Int = 502,
+    private val slaveId: Byte = 1
+) {
+    private var socket: Socket? = null
+    private var inputStream: InputStream? = null
+    private var outputStream: OutputStream? = null
+
+    suspend fun connect(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            socket = Socket().apply {
+                connect(InetSocketAddress(ipAddress, port), 3000)
+                soTimeout = 3000
+                tcpNoDelay = true
+            }
+            inputStream = socket?.getInputStream()
+            outputStream = socket?.getOutputStream()
+            true
+        } catch (e: Exception) {
+            disconnect()
+            false
+        }
+    }
+
+    fun isConnected(): Boolean = socket?.isConnected == true && socket?.isClosed == false
+
+    fun disconnect() {
+        try {
+            inputStream?.close()
+            outputStream?.close()
+            socket?.close()
+        } catch (_: Exception) {}
+        socket = null
+    }
+}
+`
+  },
+  {
+    path: 'app/src/main/assets/cummins_marine_specifications.json',
+    name: 'cummins_marine_specifications.json',
+    category: 'config',
+    language: 'json',
+    description: 'JSON database of Cummins drawings A067B091 and 6453449, Schneider BOM, sensor alarm/trip setpoints, and 7 safety interlocks.',
+    content: `{
+  "panel": "Marine-Local Control Panel (YD 305/307 - Drawing A067B091)",
+  "mainEngineDrawing": "6453449",
+  "plc": "Schneider Electric Modicon TM241CEC24U",
+  "hmi": "Schneider Electric HMIGTO3510 (7-inch)",
+  "modules": ["TM3DI8G", "TM3DQ8TG", "TM3AI8G", "TM3TI4G"],
+  "safetyInterlocks": [
+    "TURNING_GEAR_ENGAGED",
+    "REMOTE_WHEN_LOCAL_MODE",
+    "SAFETY_DEVICE_RESET_REQUIRED",
+    "LOW_FRESH_WATER_EXPANSION_TANK",
+    "SAFETY_SHUTDOWN_LATCH_ACTIVE",
+    "EMERGENCY_STOP_PRESSED",
+    "CLUTCH_NOT_IN_NEUTRAL"
+  ]
+}`
   }
 ];
