@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -116,18 +119,29 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(
-                            text = "PLC DIRECT MAINTENANCE",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            fontFamily = FontFamily.Monospace
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.plc_direct_maintenance_logo),
+                            contentDescription = "PLC Direct Maintenance logo",
+                            modifier = Modifier.size(52.dp),
+                            contentScale = ContentScale.Fit
                         )
-                        Text(
-                            text = "● Schneider USB-B & RJ-45 to Type-C Drivers Active",
-                            color = Color(0xFF10B981),
-                            fontSize = 11.sp
-                        )
+                        Column {
+                            Text(
+                                text = "PLC DIRECT MAINTENANCE",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text(
+                                text = "USB / Ethernet PLC maintenance",
+                                color = Color(0xFF10B981),
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
