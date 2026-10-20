@@ -29,9 +29,9 @@
     <application
         android:name=".PLCDirectMaintenanceApp"
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="@drawable/plc_direct_maintenance_logo"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@drawable/plc_direct_maintenance_logo"
         android:supportsRtl="true"
         android:theme="@style/Theme.PLCDirectMaintenance"
         tools:targetApi="34">
