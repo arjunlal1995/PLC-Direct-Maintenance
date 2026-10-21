@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -18,12 +19,14 @@ import com.plc.directmaintenance.R
 
 object NotificationHelper {
 
+    private const val TAG = "NotificationHelper"
+
     const val CHANNEL_ID = "plc_maintenance_alerts"
 
     private const val CHANNEL_NAME = "PLC Maintenance Alerts"
 
     private const val CHANNEL_DESCRIPTION =
-        "Maintenance alerts and PLC diagnostic notifications"
+        "PLC alarms, maintenance warnings, and diagnostic alerts."
 
     const val ACTION_ACKNOWLEDGE_ALERT =
         "com.plc.directmaintenance.ACTION_ACKNOWLEDGE_ALERT"
@@ -44,8 +47,8 @@ object NotificationHelper {
     private const val REQUEST_SNOOZE = 4000
 
     /**
-     * Create the notification channel.
-     * Required on Android 8.0 and later.
+     * Creates the notification channel.
+     * Required for Android 8.0 and later.
      */
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
@@ -69,7 +72,7 @@ object NotificationHelper {
     }
 
     /**
-     * Display a maintenance alert.
+     * Displays a maintenance alert.
      */
     fun showAlert(
         context: Context,
@@ -80,14 +83,11 @@ object NotificationHelper {
     ) {
         createNotificationChannel(context)
 
-        // Android 13+ requires notification permission.
-        if (
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (!hasNotificationPermission(context)) {
+            Log.w(
+                TAG,
+                "Notification permission not granted."
+            )
             return
         }
 
@@ -107,23 +107,26 @@ object NotificationHelper {
                 PendingIntent.FLAG_IMMUTABLE
         )
 
-        val acknowledgeIntent = createActionIntent(
+        val acknowledgePendingIntent = createActionPendingIntent(
             context = context,
             action = ACTION_ACKNOWLEDGE_ALERT,
+            requestCode = REQUEST_ACKNOWLEDGE + notificationId,
             notificationId = notificationId,
             alertId = alertId
         )
 
-        val dispatchIntent = createActionIntent(
+        val dispatchPendingIntent = createActionPendingIntent(
             context = context,
             action = ACTION_DISPATCH_TECH,
+            requestCode = REQUEST_DISPATCH + notificationId,
             notificationId = notificationId,
             alertId = alertId
         )
 
-        val snoozeIntent = createActionIntent(
+        val snoozePendingIntent = createActionPendingIntent(
             context = context,
             action = ACTION_SNOOZE_ALERT,
+            requestCode = REQUEST_SNOOZE + notificationId,
             notificationId = notificationId,
             alertId = alertId
         )
@@ -139,24 +142,24 @@ object NotificationHelper {
                 NotificationCompat.BigTextStyle()
                     .bigText(message)
             )
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openAppPendingIntent)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(false)
             .addAction(
                 0,
                 "Acknowledge",
-                acknowledgeIntent
+                acknowledgePendingIntent
             )
             .addAction(
                 0,
                 "Dispatch",
-                dispatchIntent
+                dispatchPendingIntent
             )
             .addAction(
                 0,
                 "Snooze 10 min",
-                snoozeIntent
+                snoozePendingIntent
             )
             .build()
 
@@ -165,21 +168,41 @@ object NotificationHelper {
                 .from(context)
                 .notify(notificationId, notification)
         } catch (exception: SecurityException) {
-            // Permission may have been revoked.
-            android.util.Log.w(
-                "NotificationHelper",
-                "Unable to post notification",
+            Log.e(
+                TAG,
+                "Unable to display notification.",
                 exception
             )
         }
     }
 
     /**
-     * Create an explicit PendingIntent for a notification action.
+     * Checks notification permission.
      */
-    private fun createActionIntent(
+    private fun hasNotificationPermission(
+        context: Context
+    ): Boolean {
+        return if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+        ) {
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            NotificationManagerCompat
+                .from(context)
+                .areNotificationsEnabled()
+        }
+    }
+
+    /**
+     * Creates a PendingIntent for a notification action.
+     */
+    private fun createActionPendingIntent(
         context: Context,
         action: String,
+        requestCode: Int,
         notificationId: Int,
         alertId: String
     ): PendingIntent {
@@ -188,21 +211,16 @@ object NotificationHelper {
             NotificationActionReceiver::class.java
         ).apply {
             this.action = action
-            putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-            putExtra(EXTRA_ALERT_ID, alertId)
-        }
 
-        val requestCode = when (action) {
-            ACTION_ACKNOWLEDGE_ALERT ->
-                REQUEST_ACKNOWLEDGE + notificationId
+            putExtra(
+                EXTRA_NOTIFICATION_ID,
+                notificationId
+            )
 
-            ACTION_DISPATCH_TECH ->
-                REQUEST_DISPATCH + notificationId
-
-            ACTION_SNOOZE_ALERT ->
-                REQUEST_SNOOZE + notificationId
-
-            else -> notificationId
+            putExtra(
+                EXTRA_ALERT_ID,
+                alertId
+            )
         }
 
         return PendingIntent.getBroadcast(
@@ -215,7 +233,7 @@ object NotificationHelper {
     }
 
     /**
-     * Cancel one notification.
+     * Cancels one notification.
      */
     fun cancelAlert(
         context: Context,
@@ -227,7 +245,7 @@ object NotificationHelper {
     }
 
     /**
-     * Cancel all notifications posted by this application.
+     * Cancels all app notifications.
      */
     fun cancelAllAlerts(context: Context) {
         NotificationManagerCompat
