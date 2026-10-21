@@ -1,88 +1,219 @@
 package com.plc.directmaintenance.drivers
 
 import android.content.Context
-import com.plc.directmaintenance.model.AlertSeverity
-import com.plc.directmaintenance.model.PlcAlert
+import android.util.Log
+
 import com.plc.directmaintenance.notifications.NotificationHelper
-import kotlinx.coroutines.*
 
 /**
- * Unified Schneider Electric PLC Hardware Manager.
- * Bridges direct USB-B and RJ-45 physical connections to the Real-Time Notification Engine.
+ * Manages PLC connection state and maintenance alerts.
+ *
+ * IMPORTANT:
+ * This class does not yet establish a physical PLC connection.
+ * Implement the actual protocol operations for your PLC model
+ * before using this class for real equipment monitoring.
  */
-class SchneiderPlcManager(
-    private val context: Context,
-    private val notificationHelper: NotificationHelper
-) {
-    val usbDriver = SchneiderUsbDriver(context)
-    val tcpDriver = SchneiderModbusTcpDriver()
+class SchneiderPlcManager(context: Context) {
 
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var isMonitoring = false
+    companion object {
+        private const val TAG = "SchneiderPlcManager"
 
-    fun startRealTimeMonitoring(ipAddress: String) {
-        if (isMonitoring) return
-        isMonitoring = true
+        private const val ALERT_ID_CONNECTION =
+            "PLC-CONNECTION-001"
 
-        scope.launch {
-            // Attempt RJ-45 connection first
-            val connected = tcpDriver.connect(ipAddress)
-            if (!connected) {
-                // Attempt USB-B OTG connection
-                usbDriver.findAndConnectSchneiderPlc()
-            }
-
-            while (isActive && isMonitoring) {
-                delay(1000)
-
-                // 1. Poll Schneider System Words (%SW50: Diagnostic Error Register)
-                val sw = tcpDriver.readSystemWords(startWord = 50, count = 2)
-                if (sw != null && sw.isNotEmpty()) {
-                    val errorCode = sw[0]
-                    if (errorCode != 0) {
-                        // PLC Fault detected! Dispatch instant high-priority alert
-                        val alert = PlcAlert(
-                            id = "SCHN-" + System.currentTimeMillis().toString().takeLast(4),
-                            machineId = "SCHNEIDER-M580-01",
-                            machineName = "Schneider Modicon M580 (RJ45 Direct)",
-                            plcTag = "%SW50_ERROR_REG",
-                            severity = if (errorCode > 0x4000) AlertSeverity.CRITICAL else AlertSeverity.HIGH,
-                            title = "SCHNEIDER FAULT 0x" + Integer.toHexString(errorCode).uppercase(),
-                            message = "Diagnostic error detected on Schneider Modicon rack. Error code: 0x" + Integer.toHexString(errorCode).uppercase(),
-                            timestamp = System.currentTimeMillis(),
-                            temperatureC = 68.4f,
-                            pressureBar = 180.0f
-                        )
-                        notificationHelper.postCustomRealTimeAlert(alert)
-                    }
-                }
-
-                // 2. Poll Emergency Stop Interlock Bit (%M1)
-                val bits = tcpDriver.readInternalBits(startBit = 1, count = 1)
-                if (bits != null && bits.isNotEmpty() && bits[0]) {
-                    // %M1 is HIGH -> E-Stop triggered!
-                    val estopAlert = PlcAlert(
-                        id = "ESTOP-" + System.currentTimeMillis().toString().takeLast(4),
-                        machineId = "SCHNEIDER-M340",
-                        machineName = "Schneider Modicon M340 Cell",
-                        plcTag = "%M1_ESTOP_TRIPPED",
-                        severity = AlertSeverity.CRITICAL,
-                        title = "🚨 EMERGENCY STOP ACTIVE (%M1)",
-                        message = "Physical E-Stop button actuated on Schneider Modicon M340. Machine de-energized via USB-B/RJ-45 safety loop.",
-                        timestamp = System.currentTimeMillis(),
-                        temperatureC = 45.0f,
-                        pressureBar = 0.0f
-                    )
-                    notificationHelper.postCustomRealTimeAlert(estopAlert)
-                }
-            }
-        }
+        private const val NOTIFICATION_ID_CONNECTION = 3001
     }
 
-    fun stop() {
-        isMonitoring = false
-        scope.cancel()
-        usbDriver.disconnect()
-        tcpDriver.disconnect()
+    private val appContext = context.applicationContext
+
+    enum class ConnectionState {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED,
+        ERROR
+    }
+
+    data class PlcStatus(
+        val connectionState: ConnectionState,
+        val plcModel: String,
+        val message: String,
+        val lastUpdatedMillis: Long
+    )
+
+    @Volatile
+    private var connectionState =
+        ConnectionState.DISCONNECTED
+
+    @Volatile
+    private var lastError: String? = null
+
+    @Volatile
+    private var lastUpdatedMillis: Long = 0L
+
+    /**
+     * Returns the current connection status.
+     */
+    @Synchronized
+    fun getStatus(): PlcStatus {
+        return PlcStatus(
+            connectionState = connectionState,
+            plcModel = "Schneider PLC (model not configured)",
+            message = lastError
+                ?: defaultStatusMessage(connectionState),
+            lastUpdatedMillis = lastUpdatedMillis
+        )
+    }
+
+    /**
+     * Begins the connection workflow.
+     *
+     * This method intentionally does not report CONNECTED:
+     * no real PLC communication is implemented yet.
+     */
+    @Synchronized
+    fun connect(): Boolean {
+        connectionState = ConnectionState.CONNECTING
+        lastUpdatedMillis = System.currentTimeMillis()
+        lastError = "PLC communication driver is not configured."
+
+        Log.w(
+            TAG,
+            "Connection requested, but no protocol driver is configured."
+        )
+
+        connectionState = ConnectionState.ERROR
+        lastUpdatedMillis = System.currentTimeMillis()
+
+        publishConnectionError(
+            "PLC connection unavailable",
+            "No PLC communication driver is configured. " +
+                "Verify the PLC model, protocol, network, and driver."
+        )
+
+        return false
+    }
+
+    /**
+     * Disconnects the manager's logical connection state.
+     *
+     * When a real protocol driver is added, close its socket or
+     * session here as well.
+     */
+    @Synchronized
+    fun disconnect() {
+        connectionState = ConnectionState.DISCONNECTED
+        lastError = null
+        lastUpdatedMillis = System.currentTimeMillis()
+
+        Log.i(TAG, "PLC manager disconnected")
+    }
+
+    /**
+     * Indicates whether a verified connection is established.
+     */
+    fun isConnected(): Boolean {
+        return connectionState == ConnectionState.CONNECTED
+    }
+
+    /**
+     * Reports a successful connection.
+     *
+     * Call this only after a real driver has established
+     * communication with the PLC and verified the response.
+     */
+    @Synchronized
+    fun reportConnectionEstablished() {
+        connectionState = ConnectionState.CONNECTED
+        lastError = null
+        lastUpdatedMillis = System.currentTimeMillis()
+
+        Log.i(TAG, "PLC connection established by driver")
+    }
+
+    /**
+     * Reports a connection failure.
+     */
+    @Synchronized
+    fun reportConnectionFailure(reason: String) {
+        connectionState = ConnectionState.ERROR
+        lastError = reason
+        lastUpdatedMillis = System.currentTimeMillis()
+
+        Log.e(TAG, "PLC connection failure: $reason")
+
+        publishConnectionError(
+            "PLC connection error",
+            reason
+        )
+    }
+
+    /**
+     * Sends a maintenance notification.
+     *
+     * Call this when your verified PLC driver detects
+     * a real alarm condition.
+     */
+    fun publishAlarm(
+        alarmId: String,
+        title: String,
+        message: String,
+        notificationId: Int
+    ) {
+        Log.w(
+            TAG,
+            "Maintenance alert [$alarmId]: $message"
+        )
+
+        NotificationHelper.showAlert(
+            context = appContext,
+            notificationId = notificationId,
+            alertId = alarmId,
+            title = title,
+            message = message
+        )
+    }
+
+    /**
+     * Clears a notification.
+     *
+     * This clears the Android notification only; it does not
+     * reset an alarm or change the PLC's physical outputs.
+     */
+    fun clearAlarm(notificationId: Int) {
+        NotificationHelper.cancelAlert(
+            context = appContext,
+            notificationId = notificationId
+        )
+    }
+
+    private fun publishConnectionError(
+        title: String,
+        message: String
+    ) {
+        NotificationHelper.showAlert(
+            context = appContext,
+            notificationId = NOTIFICATION_ID_CONNECTION,
+            alertId = ALERT_ID_CONNECTION,
+            title = title,
+            message = message
+        )
+    }
+
+    private fun defaultStatusMessage(
+        state: ConnectionState
+    ): String {
+        return when (state) {
+            ConnectionState.DISCONNECTED ->
+                "PLC is disconnected."
+
+            ConnectionState.CONNECTING ->
+                "PLC connection is being established."
+
+            ConnectionState.CONNECTED ->
+                "PLC communication has been verified."
+
+            ConnectionState.ERROR ->
+                "PLC connection error."
+        }
     }
 }
