@@ -15,11 +15,20 @@ import androidx.core.app.NotificationCompat
 
 import com.plc.directmaintenance.MainActivity
 import com.plc.directmaintenance.R
+import com.plc.directmaintenance.notifications.NotificationHelper
 
 class DirectMaintenanceService : Service() {
 
     companion object {
         private const val TAG = "DirectMaintenanceService"
+
+        private const val CHANNEL_ID =
+            "plc_background_monitoring"
+
+        private const val CHANNEL_NAME =
+            "PLC Background Monitoring"
+
+        private const val NOTIFICATION_ID = 2001
 
         const val ACTION_START =
             "com.plc.directmaintenance.service.ACTION_START"
@@ -30,14 +39,12 @@ class DirectMaintenanceService : Service() {
         const val ACTION_REFRESH =
             "com.plc.directmaintenance.service.ACTION_REFRESH"
 
-        private const val CHANNEL_ID =
-            "plc_background_monitoring"
-
-        private const val CHANNEL_NAME =
-            "PLC Background Monitoring"
-
-        private const val NOTIFICATION_ID = 2001
-
+        /**
+         * Start the foreground service.
+         *
+         * Call this from a user action while the app is visible,
+         * subject to Android foreground-service restrictions.
+         */
         fun start(context: Context) {
             val intent = Intent(
                 context,
@@ -53,6 +60,9 @@ class DirectMaintenanceService : Service() {
             }
         }
 
+        /**
+         * Request that the service stop.
+         */
         fun stop(context: Context) {
             val intent = Intent(
                 context,
@@ -63,12 +73,29 @@ class DirectMaintenanceService : Service() {
 
             context.startService(intent)
         }
+
+        /**
+         * Request a foreground notification refresh.
+         */
+        fun refresh(context: Context) {
+            val intent = Intent(
+                context,
+                DirectMaintenanceService::class.java
+            ).apply {
+                action = ACTION_REFRESH
+            }
+
+            context.startService(intent)
+        }
     }
 
     override fun onCreate() {
         super.onCreate()
 
-        createNotificationChannel()
+        createServiceNotificationChannel()
+
+        // Create the maintenance alert channel as well.
+        NotificationHelper.createNotificationChannel(this)
 
         Log.i(TAG, "Service created")
     }
@@ -87,64 +114,81 @@ class DirectMaintenanceService : Service() {
 
             ACTION_REFRESH -> {
                 updateForegroundNotification(
-                    "Monitoring service is running. PLC data is not connected."
+                    "Background service is running. PLC connection has not been verified."
                 )
                 return START_NOT_STICKY
             }
 
             ACTION_START, null -> {
+                // A foreground service must promptly publish
+                // its notification after it is started.
                 startForeground(
                     NOTIFICATION_ID,
-                    buildNotification(
-                        "Monitoring service started. PLC connection not verified."
+                    buildServiceNotification(
+                        "Service running. PLC monitoring is not yet verified."
                     )
                 )
 
-                // Add your verified PLC polling implementation here.
-                // Do not assume the PLC is connected until the driver
-                // establishes communication successfully.
+                Log.i(TAG, "Foreground service started")
 
-                Log.i(TAG, "Service started")
+                /*
+                 * TODO: Start the actual PLC communication worker here.
+                 *
+                 * Establish communication with the confirmed PLC model
+                 * and protocol, check connection status, and validate
+                 * the received values before reporting equipment status.
+                 *
+                 * This service alone does not read PLC registers,
+                 * monitor inputs/outputs, or trigger real PLC alarms.
+                 */
             }
 
             else -> {
-                Log.w(TAG, "Unknown service action: ${intent.action}")
+                Log.w(
+                    TAG,
+                    "Unknown service action: ${intent.action}"
+                )
             }
         }
 
         return START_NOT_STICKY
     }
 
-    private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                CHANNEL_NAME,
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description =
-                    "Status notification for PLC monitoring service"
-            }
-
-            val manager = getSystemService(
-                Context.NOTIFICATION_SERVICE
-            ) as NotificationManager
-
-            manager.createNotificationChannel(channel)
+    private fun createServiceNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return
         }
+
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description =
+                "Shows the current status of the background service."
+        }
+
+        val manager = getSystemService(
+            Context.NOTIFICATION_SERVICE
+        ) as NotificationManager
+
+        manager.createNotificationChannel(channel)
     }
 
-    private fun buildNotification(
+    private fun buildServiceNotification(
         message: String
     ): Notification {
         val activityIntent = Intent(
             this,
             MainActivity::class.java
-        )
+        ).apply {
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
 
         val pendingIntent = PendingIntent.getActivity(
             this,
-            2002,
+            NOTIFICATION_ID,
             activityIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or
                 PendingIntent.FLAG_IMMUTABLE
@@ -162,9 +206,9 @@ class DirectMaintenanceService : Service() {
                     .bigText(message)
             )
             .setContentIntent(pendingIntent)
-            .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
             .build()
     }
 
@@ -177,16 +221,17 @@ class DirectMaintenanceService : Service() {
 
         manager.notify(
             NOTIFICATION_ID,
-            buildNotification(message)
+            buildServiceNotification(message)
         )
     }
 
     override fun onBind(intent: Intent?): IBinder? {
+        // This service is not designed for binding.
         return null
     }
 
     override fun onDestroy() {
-        Log.i(TAG, "Service stopped")
+        Log.i(TAG, "Foreground service destroyed")
         super.onDestroy()
     }
 }
