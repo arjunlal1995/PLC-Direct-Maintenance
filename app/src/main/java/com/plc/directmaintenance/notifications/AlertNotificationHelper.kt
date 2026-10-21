@@ -19,11 +19,6 @@ object AlertNotificationHelper {
     private const val CHANNEL_ID = "plc_maintenance_alerts"
     private const val CHANNEL_NAME = "PLC Maintenance Alerts"
 
-    private const val REQUEST_OPEN_APP = 1000
-    private const val REQUEST_ACKNOWLEDGE = 2000
-    private const val REQUEST_DISPATCH = 3000
-    private const val REQUEST_SNOOZE = 4000
-
     fun showAlert(
         context: Context,
         notificationId: Int,
@@ -33,7 +28,7 @@ object AlertNotificationHelper {
     ) {
         createNotificationChannel(context)
 
-        // Android 13+ requires notification permission.
+        // Check notification permission on Android 13 and later.
         if (
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(
@@ -44,40 +39,41 @@ object AlertNotificationHelper {
             return
         }
 
-        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+        val openAppIntent = Intent(
+            context,
+            MainActivity::class.java
+        ).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
         val openAppPendingIntent = PendingIntent.getActivity(
             context,
-            REQUEST_OPEN_APP,
+            notificationId,
             openAppIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Create the explicit Intent for the Acknowledge action.
+        // Acknowledge action.
         val acknowledgeIntent = Intent(
             context,
             NotificationActionReceiver::class.java
         ).apply {
-            action =
-                NotificationActionReceiver.ACTION_ACKNOWLEDGE_ALERT
-
+            action = NotificationActionReceiver.ACTION_ACKNOWLEDGE_ALERT
             putExtra("notification_id", notificationId)
             putExtra("alert_id", alertId)
         }
 
         val acknowledgePendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_ACKNOWLEDGE + notificationId,
+            notificationId + 10000,
             acknowledgeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Create the explicit Intent for Dispatch Technician.
+        // Dispatch technician action.
         val dispatchIntent = Intent(
             context,
             NotificationActionReceiver::class.java
@@ -89,13 +85,13 @@ object AlertNotificationHelper {
 
         val dispatchPendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_DISPATCH + notificationId,
+            notificationId + 20000,
             dispatchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Create the explicit Intent for Snooze.
+        // Snooze action.
         val snoozeIntent = Intent(
             context,
             NotificationActionReceiver::class.java
@@ -107,10 +103,10 @@ object AlertNotificationHelper {
 
         val snoozePendingIntent = PendingIntent.getBroadcast(
             context,
-            REQUEST_SNOOZE + notificationId,
+            notificationId + 30000,
             snoozeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or
-                    PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_IMMUTABLE
         )
 
         val notification = NotificationCompat.Builder(
@@ -121,8 +117,7 @@ object AlertNotificationHelper {
             .setContentTitle(title)
             .setContentText(message)
             .setStyle(
-                NotificationCompat.BigTextStyle()
-                    .bigText(message)
+                NotificationCompat.BigTextStyle().bigText(message)
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
@@ -158,7 +153,8 @@ object AlertNotificationHelper {
                 CHANNEL_NAME,
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Important PLC maintenance and fault alerts"
+                description =
+                    "Important PLC maintenance and fault notifications"
             }
 
             val manager = context.getSystemService(
